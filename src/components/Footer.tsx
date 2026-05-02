@@ -41,7 +41,7 @@ export default function Footer() {
             <Link href="/terms" className="hover:text-white transition-colors">
               Terms &amp; Conditions
             </Link>
-            <a href="mailto:hello@comparetheinstructor.co.uk" className="hover:text-white transition-colors">
+            <a href="mailto:info@comparetheinstructor.co.uk" className="hover:text-white transition-colors">
               Contact
             </a>
           </div>
