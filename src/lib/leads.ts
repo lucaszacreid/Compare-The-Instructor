@@ -4,25 +4,52 @@ import { Lead, InstructorInterest } from "@/types";
 const LEADS_FILE = "/tmp/cti-leads.json";
 const INSTRUCTORS_FILE = "/tmp/cti-instructors.json";
 
-export async function saveLeadToFile(lead: Lead): Promise<void> {
-  let leads: Lead[] = [];
-  try {
-    const data = await fs.readFile(LEADS_FILE, "utf-8");
-    leads = JSON.parse(data);
-  } catch {
-    // File doesn't exist yet — start fresh
-  }
-  leads.push(lead);
-  await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
-}
-
-export async function getLeads(): Promise<Lead[]> {
+async function readLeads(): Promise<Lead[]> {
   try {
     const data = await fs.readFile(LEADS_FILE, "utf-8");
     return JSON.parse(data) as Lead[];
   } catch {
     return [];
   }
+}
+
+async function writeLeads(leads: Lead[]): Promise<void> {
+  await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+}
+
+export async function saveLeadToFile(lead: Lead): Promise<void> {
+  const leads = await readLeads();
+  leads.push(lead);
+  await writeLeads(leads);
+}
+
+export async function upsertLead(lead: Lead): Promise<void> {
+  const leads = await readLeads();
+  const idx = leads.findIndex((l) => l.id === lead.id);
+  if (idx >= 0) {
+    leads[idx] = lead;
+  } else {
+    leads.push(lead);
+  }
+  await writeLeads(leads);
+}
+
+export async function updateLeadById(id: string, updates: Partial<Lead>): Promise<void> {
+  const leads = await readLeads();
+  const idx = leads.findIndex((l) => l.id === id);
+  if (idx >= 0) {
+    leads[idx] = { ...leads[idx], ...updates };
+    await writeLeads(leads);
+  }
+}
+
+export async function getLeadById(id: string): Promise<Lead | null> {
+  const leads = await readLeads();
+  return leads.find((l) => l.id === id) ?? null;
+}
+
+export async function getLeads(): Promise<Lead[]> {
+  return readLeads();
 }
 
 export async function saveInstructorInterest(entry: InstructorInterest): Promise<void> {
@@ -40,6 +67,8 @@ export async function saveInstructorInterest(entry: InstructorInterest): Promise
 export function leadsToCSV(leads: Lead[]): string {
   const headers = [
     "Submitted At",
+    "Status",
+    "Dropped Off Step",
     "Name",
     "Email",
     "Phone",
@@ -57,6 +86,8 @@ export function leadsToCSV(leads: Lead[]): string {
 
   const rows = leads.map((l) => [
     l.submittedAt,
+    l.status ?? "completed",
+    l.abandonedAtStep ?? "",
     l.fullName,
     l.email,
     l.phone,

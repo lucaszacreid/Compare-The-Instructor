@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { saveLeadToFile } from "@/lib/leads";
+import { upsertLead } from "@/lib/leads";
 import { Lead } from "@/types";
 import crypto from "crypto";
 
@@ -29,24 +29,25 @@ export async function GET(req: NextRequest) {
     const meta = session.metadata ?? {};
 
     const lead: Lead = {
-      id: crypto.randomUUID(),
+      id: meta.leadId || crypto.randomUUID(),
       submittedAt: new Date().toISOString(),
+      status: "completed",
       fullName: meta.fullName ?? "",
       email: meta.email ?? "",
       phone: meta.phone ?? "",
       postcode: meta.postcode ?? "",
-      lessonType: (meta.lessonType as Lead["lessonType"]) ?? "manual",
-      experience: (meta.experience as Lead["experience"]) ?? "beginner",
-      confidence: (meta.confidence as Lead["confidence"]) ?? "fairly_confident",
-      duration: (meta.duration as Lead["duration"]) ?? "1",
+      lessonType: (meta.lessonType as Lead["lessonType"]) || "manual",
+      experience: (meta.experience as Lead["experience"]) || "beginner",
+      confidence: (meta.confidence as Lead["confidence"]) || "fairly_confident",
+      duration: (meta.duration as Lead["duration"]) || "1",
       availability: meta.availability ? meta.availability.split(",") : [],
       budget: Number(meta.budget) || 35,
-      startTime: (meta.startTime as Lead["startTime"]) ?? "asap",
+      startTime: (meta.startTime as Lead["startTime"]) || "asap",
       paymentStatus: "paid",
       stripeSessionId: sessionId,
     };
 
-    await saveLeadToFile(lead);
+    await upsertLead(lead);
 
     return NextResponse.json({ success: true, lead });
   } catch (err) {

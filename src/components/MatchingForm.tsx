@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FormData } from "@/types";
 
 const AVAILABILITY_OPTIONS = [
@@ -52,9 +52,47 @@ export default function MatchingForm() {
 
   const totalSteps = 3;
 
+  // Refs for scroll-to-top and abandonment tracking
+  const formCardRef = useRef<HTMLDivElement>(null);
+  const leadIdRef = useRef<string>("");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    leadIdRef.current = crypto.randomUUID();
+  }, []);
+
+  // Scroll to top of form card whenever step changes
+  useEffect(() => {
+    if (!formCardRef.current) return;
+    const top = formCardRef.current.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: "smooth" });
+  }, [step]);
+
+  // ── Abandonment tracking ───────────────────────────────────────────────────
+
+  const saveAbandonedNow = (data: FormData, atStep: number) => {
+    if (!leadIdRef.current || !data.email.includes("@")) return;
+    fetch("/api/save-abandoned", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: leadIdRef.current, abandonedAtStep: atStep, ...data }),
+    }).catch(() => {});
+  };
+
+  const scheduleSaveAbandoned = (data: FormData, atStep: number) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => saveAbandonedNow(data, atStep), 1500);
+  };
+
+  // ── Form helpers ───────────────────────────────────────────────────────────
+
   const updateField = <K extends keyof FormData>(key: K, value: FormData[K]) => {
-    setFormData((prev) => ({ ...prev, [key]: value }));
+    const next = { ...formData, [key]: value };
+    setFormData(next);
     setErrors((prev) => ({ ...prev, [key]: "" }));
+    if ((key === "fullName" || key === "email" || key === "phone") && next.email.includes("@")) {
+      scheduleSaveAbandoned(next, step);
+    }
   };
 
   const toggleAvailability = (value: string) => {
@@ -66,6 +104,8 @@ export default function MatchingForm() {
     }));
     setErrors((prev) => ({ ...prev, availability: "" }));
   };
+
+  // ── Validation ─────────────────────────────────────────────────────────────
 
   const validateStep1 = (): boolean => {
     const e: FieldErrors = {};
@@ -98,9 +138,16 @@ export default function MatchingForm() {
     return Object.keys(e).length === 0;
   };
 
+  // ── Navigation ─────────────────────────────────────────────────────────────
+
   const handleNext = () => {
-    if (step === 1 && validateStep1()) setStep(2);
-    else if (step === 2 && validateStep2()) setStep(3);
+    if (step === 1 && validateStep1()) {
+      saveAbandonedNow(formData, 2);
+      setStep(2);
+    } else if (step === 2 && validateStep2()) {
+      saveAbandonedNow(formData, 3);
+      setStep(3);
+    }
   };
 
   const handleBack = () => setStep((s) => Math.max(1, s - 1));
@@ -113,7 +160,7 @@ export default function MatchingForm() {
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, leadId: leadIdRef.current }),
       });
       const data = await res.json();
       if (!res.ok || !data.url) throw new Error(data.error ?? "Something went wrong");
@@ -139,7 +186,11 @@ export default function MatchingForm() {
           <p className="text-gray-500">Takes 2 minutes — we&apos;ll do the rest.</p>
         </div>
 
-        <div className="bg-white rounded-3xl shadow-xl shadow-navy-100 border border-navy-100 overflow-hidden">
+        {/* Scroll target — 80px offset handled by scrollTo in useEffect */}
+        <div
+          ref={formCardRef}
+          className="bg-white rounded-3xl shadow-xl shadow-navy-100 border border-navy-100 overflow-hidden"
+        >
           {/* Progress bar */}
           <div className="px-8 pt-8">
             <div className="flex items-center justify-between mb-2">
@@ -162,10 +213,7 @@ export default function MatchingForm() {
               <div className="animate-fade-in">
                 <h3 className="text-xl font-bold text-navy-700 mb-6">About You</h3>
                 <div className="space-y-4">
-                  <Field
-                    label="Full name"
-                    error={errors.fullName}
-                  >
+                  <Field label="Full name" error={errors.fullName}>
                     <input
                       type="text"
                       autoComplete="name"
@@ -216,7 +264,6 @@ export default function MatchingForm() {
               <div className="animate-fade-in">
                 <h3 className="text-xl font-bold text-navy-700 mb-6">Your Preferences</h3>
                 <div className="space-y-6">
-                  {/* Lesson type */}
                   <Field label="Lesson type" error={errors.lessonType}>
                     <div className="grid grid-cols-2 gap-3">
                       {(["manual", "automatic"] as const).map((type) => (
@@ -233,7 +280,6 @@ export default function MatchingForm() {
                     </div>
                   </Field>
 
-                  {/* Experience */}
                   <Field label="Current experience level" error={errors.experience}>
                     <div className="space-y-2">
                       {EXPERIENCE_OPTIONS.map((opt) => (
@@ -248,7 +294,6 @@ export default function MatchingForm() {
                     </div>
                   </Field>
 
-                  {/* Confidence */}
                   <Field label="How confident do you feel about getting started?" error={errors.confidence}>
                     <div className="space-y-2">
                       {CONFIDENCE_OPTIONS.map((opt) => (
@@ -269,7 +314,6 @@ export default function MatchingForm() {
                     </div>
                   </Field>
 
-                  {/* Duration */}
                   <Field label="Preferred lesson duration" error={errors.duration}>
                     <div className="grid grid-cols-3 gap-3">
                       {(["1", "1.5", "2"] as const).map((d) => (
@@ -293,7 +337,6 @@ export default function MatchingForm() {
               <div className="animate-fade-in">
                 <h3 className="text-xl font-bold text-navy-700 mb-6">Logistics &amp; Payment</h3>
                 <div className="space-y-6">
-                  {/* Availability */}
                   <Field label="When are you available for lessons?" error={errors.availability}>
                     <div className="space-y-2">
                       {AVAILABILITY_OPTIONS.map((opt) => (
@@ -320,7 +363,6 @@ export default function MatchingForm() {
                     </div>
                   </Field>
 
-                  {/* Budget slider */}
                   <Field label={`Budget per hour: £${formData.budget}`}>
                     <div className="px-1">
                       <input
@@ -342,7 +384,6 @@ export default function MatchingForm() {
                     </div>
                   </Field>
 
-                  {/* Start time */}
                   <Field label="How soon do you want to start?" error={errors.startTime}>
                     <div className="grid grid-cols-2 gap-2">
                       {([
@@ -389,32 +430,69 @@ export default function MatchingForm() {
                       ))}
                     </ul>
                   </div>
-
-                  {apiError && (
-                    <p className="text-red-600 text-sm bg-red-50 rounded-lg px-4 py-3">
-                      {apiError}
-                    </p>
-                  )}
                 </div>
+
+                {/* Error shown outside space-y-6 for explicit breathing room */}
+                {apiError && (
+                  <p className="mt-6 text-red-600 text-sm bg-red-50 rounded-lg px-4 py-3">
+                    {apiError}
+                  </p>
+                )}
               </div>
             )}
 
             {/* Navigation */}
-            <div className={`mt-8 flex ${step > 1 ? "justify-between" : "justify-end"} items-center`}>
-              {step > 1 && (
+            {step === 3 ? (
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 text-gray-500 hover:text-navy-700 font-medium transition-colors"
+                  className="flex items-center justify-center gap-2 text-gray-500 hover:text-navy-700 font-medium transition-colors py-2 order-2 sm:order-1"
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M19 12H5M12 5l-7 7 7 7" />
                   </svg>
                   Back
                 </button>
-              )}
-
-              {step < 3 ? (
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full sm:w-auto order-1 sm:order-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold px-5 py-3 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/30 text-sm"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin flex-shrink-0" width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="white" strokeOpacity="0.3" strokeWidth="3" />
+                        <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
+                      </svg>
+                      Redirecting to payment...
+                    </>
+                  ) : (
+                    <>
+                      Find My Instructor — £3.99
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
+                        <line x1="1" y1="10" x2="23" y2="10" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className={`mt-8 flex ${step > 1 ? "justify-between" : "justify-end"} items-center`}>
+                {step > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleBack}
+                    className="flex items-center gap-2 text-gray-500 hover:text-navy-700 font-medium transition-colors"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 12H5M12 5l-7 7 7 7" />
+                    </svg>
+                    Back
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleNext}
@@ -425,33 +503,8 @@ export default function MatchingForm() {
                     <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold px-6 py-3 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-orange-500/30 text-sm sm:text-base"
-                >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="white" strokeOpacity="0.3" strokeWidth="3" />
-                        <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
-                      </svg>
-                      Redirecting to payment...
-                    </>
-                  ) : (
-                    <>
-                      Find My Instructor — £3.99
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="1" y="4" width="22" height="16" rx="2" ry="2" />
-                        <line x1="1" y1="10" x2="23" y2="10" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 

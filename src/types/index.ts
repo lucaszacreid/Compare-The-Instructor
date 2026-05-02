@@ -1,17 +1,19 @@
 export interface Lead {
   id: string;
   submittedAt: string;
+  status: "abandoned" | "completed";
+  abandonedAtStep?: 1 | 2 | 3;
   fullName: string;
   email: string;
   phone: string;
   postcode: string;
-  lessonType: "manual" | "automatic";
-  experience: "beginner" | "some" | "moderate" | "ready";
-  confidence: "very_nervous" | "somewhat_nervous" | "fairly_confident" | "very_confident";
-  duration: "1" | "1.5" | "2";
+  lessonType: "manual" | "automatic" | "";
+  experience: "beginner" | "some" | "moderate" | "ready" | "";
+  confidence: "very_nervous" | "somewhat_nervous" | "fairly_confident" | "very_confident" | "";
+  duration: "1" | "1.5" | "2" | "";
   availability: string[];
   budget: number;
-  startTime: "asap" | "two_weeks" | "month" | "exploring";
+  startTime: "asap" | "two_weeks" | "month" | "exploring" | "";
   paymentStatus: "paid" | "pending";
   stripeSessionId?: string;
 }

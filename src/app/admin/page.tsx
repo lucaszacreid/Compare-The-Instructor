@@ -25,6 +25,71 @@ const START_LABELS: Record<string, string> = {
   exploring: "Just exploring",
 };
 
+function ReminderButton({ lead, password }: { lead: Lead; password: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "sent" | "error">("idle");
+
+  const handleSend = async () => {
+    setState("loading");
+    try {
+      const res = await fetch("/api/send-reminder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId: lead.id, password }),
+      });
+      const data = await res.json();
+      setState(res.ok && data.ok ? "sent" : "error");
+    } catch {
+      setState("error");
+    }
+  };
+
+  if (state === "sent") {
+    return (
+      <span className="inline-flex items-center gap-1 text-green-600 text-xs font-semibold bg-green-50 px-2.5 py-1.5 rounded-lg">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        Sent
+      </span>
+    );
+  }
+
+  if (state === "error") {
+    return (
+      <span className="inline-flex items-center gap-1 text-red-600 text-xs font-semibold bg-red-50 px-2.5 py-1.5 rounded-lg">
+        Failed — retry?
+        <button onClick={handleSend} className="underline ml-1">Retry</button>
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleSend}
+      disabled={state === "loading"}
+      className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+    >
+      {state === "loading" ? (
+        <>
+          <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="white" strokeOpacity="0.4" strokeWidth="3" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+          Sending…
+        </>
+      ) : (
+        <>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+          Send reminder
+        </>
+      )}
+    </button>
+  );
+}
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -121,6 +186,9 @@ export default function AdminPage() {
     );
   }
 
+  const completedLeads = leads.filter((l) => !l.status || l.status === "completed");
+  const abandonedLeads = leads.filter((l) => l.status === "abandoned");
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -135,7 +203,7 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-white/60 text-sm">
-              {leads.length} lead{leads.length !== 1 ? "s" : ""}
+              {completedLeads.length} completed · {abandonedLeads.length} abandoned
             </span>
             <button
               onClick={handleExportCSV}
@@ -158,108 +226,142 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {leads.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="text-6xl mb-4">📋</div>
-            <h2 className="text-2xl font-bold text-navy-700 mb-2">No leads yet</h2>
-            <p className="text-gray-400">Submitted enquiries will appear here.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-navy-700 text-white">
-                  {[
-                    "Date / Time",
-                    "Name",
-                    "Email",
-                    "Phone",
-                    "Postcode",
-                    "Type",
-                    "Experience",
-                    "Confidence",
-                    "Duration",
-                    "Availability",
-                    "Budget",
-                    "Start",
-                    "Payment",
-                  ].map((h) => (
-                    <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead, i) => (
-                  <tr
-                    key={lead.id}
-                    className={`border-t border-gray-100 hover:bg-orange-50/40 transition-colors ${
-                      i % 2 === 0 ? "bg-white" : "bg-gray-50/50"
-                    }`}
-                  >
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {new Date(lead.submittedAt).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      <a href={`mailto:${lead.email}`} className="hover:text-orange-500 transition-colors">
-                        {lead.email}
-                      </a>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
-                    <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${
-                        lead.lessonType === "automatic"
-                          ? "bg-navy-100 text-navy-700"
-                          : "bg-orange-100 text-orange-700"
-                      }`}>
-                        {lead.lessonType}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {EXPERIENCE_LABELS[lead.experience] ?? lead.experience}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {CONFIDENCE_LABELS[lead.confidence] ?? lead.confidence}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.duration}h</td>
-                    <td className="px-4 py-3 text-gray-500 max-w-[180px]">
-                      <div className="flex flex-wrap gap-1">
-                        {(Array.isArray(lead.availability) ? lead.availability : []).map((a) => (
-                          <span key={a} className="bg-gray-100 rounded px-1.5 py-0.5 text-xs whitespace-nowrap">
-                            {a.replace(/_/g, " ")}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">£{lead.budget}/hr</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
-                      {START_LABELS[lead.startTime] ?? lead.startTime}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        lead.paymentStatus === "paid"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-yellow-100 text-yellow-700"
-                      }`}>
-                        {lead.paymentStatus}
-                      </span>
-                    </td>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+
+        {/* ── Completed leads ─────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+            Completed leads
+            <span className="text-gray-400 font-normal text-sm">({completedLeads.length})</span>
+          </h2>
+
+          {completedLeads.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+              <div className="text-5xl mb-3">📋</div>
+              <p className="text-gray-400">No completed leads yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-navy-700 text-white">
+                    {["Date / Time", "Name", "Email", "Phone", "Postcode", "Type", "Experience", "Confidence", "Duration", "Availability", "Budget", "Start", "Payment"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody>
+                  {completedLeads.map((lead, i) => (
+                    <tr
+                      key={lead.id}
+                      className={`border-t border-gray-100 hover:bg-orange-50/40 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
+                    >
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {new Date(lead.submittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        <a href={`mailto:${lead.email}`} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
+                      <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>
+                          {lead.lessonType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{EXPERIENCE_LABELS[lead.experience] ?? lead.experience}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{CONFIDENCE_LABELS[lead.confidence] ?? lead.confidence}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.duration}h</td>
+                      <td className="px-4 py-3 text-gray-500 max-w-[180px]">
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(lead.availability) ? lead.availability : []).map((a) => (
+                            <span key={a} className="bg-gray-100 rounded px-1.5 py-0.5 text-xs whitespace-nowrap">{a.replace(/_/g, " ")}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">£{lead.budget}/hr</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{START_LABELS[lead.startTime] ?? lead.startTime}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.paymentStatus === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                          {lead.paymentStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── Abandoned leads ──────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
+            Abandoned leads
+            <span className="text-gray-400 font-normal text-sm">({abandonedLeads.length})</span>
+          </h2>
+
+          {abandonedLeads.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+              <div className="text-5xl mb-3">🎉</div>
+              <p className="text-gray-400">No abandoned leads — everyone is completing the form!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-yellow-600 text-white">
+                    {["Date / Time", "Name", "Email", "Phone", "Dropped at step", "Action"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {abandonedLeads.map((lead, i) => (
+                    <tr
+                      key={lead.id}
+                      className={`border-t border-gray-100 hover:bg-yellow-50/40 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
+                    >
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {new Date(lead.submittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">
+                        {lead.fullName || <span className="text-gray-400 font-normal italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        <a href={`mailto:${lead.email}`} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                        {lead.phone || <span className="text-gray-400 italic">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                          lead.abandonedAtStep === 1
+                            ? "bg-red-100 text-red-700"
+                            : lead.abandonedAtStep === 2
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}>
+                          Step {lead.abandonedAtStep ?? 1}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <ReminderButton lead={lead} password={password} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

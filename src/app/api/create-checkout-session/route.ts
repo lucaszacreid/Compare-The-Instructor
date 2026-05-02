@@ -11,7 +11,7 @@ function getStripe() {
 export async function POST(req: NextRequest) {
   try {
     const stripe = getStripe();
-    const body: FormData = await req.json();
+    const body: FormData & { leadId?: string } = await req.json();
 
     const baseUrl =
       process.env.NEXT_PUBLIC_BASE_URL ||
@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
       success_url: `${baseUrl}/thank-you?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/#get-matched`,
       metadata: {
+        leadId: body.leadId ?? "",
         fullName: body.fullName,
         email: body.email,
         phone: body.phone,
