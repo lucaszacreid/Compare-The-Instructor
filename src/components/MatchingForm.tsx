@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { FormData } from "@/types";
+import PostcodeAutocomplete from "@/components/PostcodeAutocomplete";
 
 const AVAILABILITY_OPTIONS = [
   { value: "weekday_mornings", label: "Weekday Mornings" },
@@ -249,13 +250,11 @@ export default function MatchingForm() {
                   </Field>
 
                   <Field label="Where are you based?" error={errors.postcode}>
-                    <input
-                      type="text"
-                      autoComplete="postal-code"
+                    <PostcodeAutocomplete
                       value={formData.postcode}
-                      onChange={(e) => updateField("postcode", e.target.value)}
+                      onChange={(v) => updateField("postcode", v)}
+                      hasError={!!errors.postcode}
                       placeholder="Postcode or city, e.g. M1 1AE or Manchester"
-                      className={inputClass(!!errors.postcode)}
                     />
                   </Field>
                 </div>

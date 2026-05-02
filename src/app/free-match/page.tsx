@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import PostcodeAutocomplete from "@/components/PostcodeAutocomplete";
 
 const CONFIDENCE_OPTIONS = [
   { value: "very_nervous",      label: "Very nervous",      emoji: "😰" },
@@ -156,13 +157,11 @@ export default function FreeMatchPage() {
               </Field>
 
               <Field label="Where are you based?" error={errors.postcode}>
-                <input
-                  type="text"
-                  autoComplete="postal-code"
+                <PostcodeAutocomplete
                   value={postcode}
-                  onChange={(e) => { setPostcode(e.target.value); setErrors((p) => ({ ...p, postcode: "" })); }}
-                  placeholder="Postcode or city, e.g. M1 1AE"
-                  className={inputClass(!!errors.postcode)}
+                  onChange={(v) => { setPostcode(v); setErrors((p) => ({ ...p, postcode: "" })); }}
+                  hasError={!!errors.postcode}
+                  placeholder="Postcode or city, e.g. M1 1AE or Manchester"
                 />
               </Field>
 
