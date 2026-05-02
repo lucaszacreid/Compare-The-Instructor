@@ -6,6 +6,15 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 
+const CONFIDENCE_OPTIONS = [
+  { value: "very_nervous",      label: "Very nervous",      emoji: "😰" },
+  { value: "somewhat_nervous",  label: "Somewhat nervous",  emoji: "😟" },
+  { value: "fairly_confident",  label: "Fairly confident",  emoji: "🙂" },
+  { value: "very_confident",    label: "Very confident",    emoji: "😄" },
+] as const;
+
+type Confidence = typeof CONFIDENCE_OPTIONS[number]["value"] | "";
+
 interface FieldErrors {
   [key: string]: string;
 }
@@ -47,13 +56,14 @@ function Field({
 export default function FreeMatchPage() {
   const router = useRouter();
 
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [postcode, setPostcode] = useState("");
+  const [fullName, setFullName]   = useState("");
+  const [email, setEmail]         = useState("");
+  const [phone, setPhone]         = useState("");
+  const [postcode, setPostcode]   = useState("");
   const [lessonType, setLessonType] = useState<"manual" | "automatic" | "">("");
+  const [confidence, setConfidence] = useState<Confidence>("");
 
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [errors, setErrors]   = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState("");
 
@@ -66,6 +76,7 @@ export default function FreeMatchPage() {
       e.phone = "Please enter a valid phone number";
     if (!postcode.trim()) e.postcode = "Please enter your postcode or city";
     if (!lessonType) e.lessonType = "Please choose Manual or Automatic";
+    if (!confidence) e.confidence = "Please select your confidence level";
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -79,7 +90,7 @@ export default function FreeMatchPage() {
       const res = await fetch("/api/save-free-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, phone, postcode, lessonType }),
+        body: JSON.stringify({ fullName, email, phone, postcode, lessonType, confidence }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Something went wrong");
@@ -110,16 +121,13 @@ export default function FreeMatchPage() {
 
           {/* Form card */}
           <div className="bg-white rounded-3xl shadow-xl border border-navy-100 p-8">
-            <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="space-y-5">
               <Field label="Full name" error={errors.fullName}>
                 <input
                   type="text"
                   autoComplete="name"
                   value={fullName}
-                  onChange={(e) => {
-                    setFullName(e.target.value);
-                    setErrors((prev) => ({ ...prev, fullName: "" }));
-                  }}
+                  onChange={(e) => { setFullName(e.target.value); setErrors((p) => ({ ...p, fullName: "" })); }}
                   placeholder="e.g. Sarah Johnson"
                   className={inputClass(!!errors.fullName)}
                 />
@@ -130,10 +138,7 @@ export default function FreeMatchPage() {
                   type="email"
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    setErrors((prev) => ({ ...prev, email: "" }));
-                  }}
+                  onChange={(e) => { setEmail(e.target.value); setErrors((p) => ({ ...p, email: "" })); }}
                   placeholder="you@example.com"
                   className={inputClass(!!errors.email)}
                 />
@@ -144,10 +149,7 @@ export default function FreeMatchPage() {
                   type="tel"
                   autoComplete="tel"
                   value={phone}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                    setErrors((prev) => ({ ...prev, phone: "" }));
-                  }}
+                  onChange={(e) => { setPhone(e.target.value); setErrors((p) => ({ ...p, phone: "" })); }}
                   placeholder="07700 900000"
                   className={inputClass(!!errors.phone)}
                 />
@@ -158,10 +160,7 @@ export default function FreeMatchPage() {
                   type="text"
                   autoComplete="postal-code"
                   value={postcode}
-                  onChange={(e) => {
-                    setPostcode(e.target.value);
-                    setErrors((prev) => ({ ...prev, postcode: "" }));
-                  }}
+                  onChange={(e) => { setPostcode(e.target.value); setErrors((p) => ({ ...p, postcode: "" })); }}
                   placeholder="Postcode or city, e.g. M1 1AE"
                   className={inputClass(!!errors.postcode)}
                 />
@@ -173,10 +172,7 @@ export default function FreeMatchPage() {
                     <button
                       key={type}
                       type="button"
-                      onClick={() => {
-                        setLessonType(type);
-                        setErrors((prev) => ({ ...prev, lessonType: "" }));
-                      }}
+                      onClick={() => { setLessonType(type); setErrors((p) => ({ ...p, lessonType: "" })); }}
                       className={toggleBtn(lessonType === type)}
                     >
                       <span className="text-2xl mb-1">{type === "manual" ? "🚗" : "⚙️"}</span>
@@ -184,6 +180,34 @@ export default function FreeMatchPage() {
                     </button>
                   ))}
                 </div>
+              </Field>
+
+              {/* Confidence level bar */}
+              <Field label="How confident do you feel?" error={errors.confidence}>
+                <div className="flex rounded-xl overflow-hidden border-2 border-gray-200 divide-x divide-gray-200">
+                  {CONFIDENCE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { setConfidence(opt.value); setErrors((p) => ({ ...p, confidence: "" })); }}
+                      className={`flex-1 py-3 px-1 text-center transition-all flex flex-col items-center justify-center gap-0.5 ${
+                        confidence === opt.value
+                          ? "bg-orange-500 text-white"
+                          : "bg-white text-gray-500 hover:bg-orange-50"
+                      } ${errors.confidence ? "border-red-400" : ""}`}
+                    >
+                      <span className="text-lg leading-none">{opt.emoji}</span>
+                      <span className="text-[10px] font-semibold leading-tight">{opt.label}</span>
+                    </button>
+                  ))}
+                </div>
+                {confidence && (
+                  <p className="text-xs text-orange-600 mt-1.5">
+                    {confidence === "very_nervous" || confidence === "somewhat_nervous"
+                      ? "Don't worry — we'll match you with an instructor who specialises in nervous learners."
+                      : "Great — we'll find an instructor who matches your pace."}
+                  </p>
+                )}
               </Field>
 
               {apiError && (
@@ -201,10 +225,7 @@ export default function FreeMatchPage() {
           </div>
 
           <div className="text-center mt-6">
-            <Link
-              href="/#pricing"
-              className="text-gray-400 hover:text-navy-700 text-sm transition-colors"
-            >
+            <Link href="/#pricing" className="text-gray-400 hover:text-navy-700 text-sm transition-colors">
               ← Back to pricing
             </Link>
           </div>

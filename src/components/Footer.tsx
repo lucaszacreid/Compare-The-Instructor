@@ -39,7 +39,7 @@ export default function Footer() {
               Privacy Policy
             </Link>
             <Link href="/terms" className="hover:text-white transition-colors">
-              Terms
+              Terms &amp; Conditions
             </Link>
             <a href="mailto:hello@comparetheinstructor.co.uk" className="hover:text-white transition-colors">
               Contact

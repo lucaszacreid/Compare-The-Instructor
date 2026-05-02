@@ -5,7 +5,7 @@ import { Lead } from "@/types";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { fullName, email, phone, postcode, lessonType } = body;
+    const { fullName, email, phone, postcode, lessonType, confidence } = body;
 
     if (!email) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       postcode: postcode ?? "",
       lessonType: lessonType || "",
       experience: "",
-      confidence: "",
+      confidence: confidence || "",
       duration: "",
       availability: [],
       budget: 35,
