@@ -22,25 +22,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
     }
 
-    if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
+    if (!process.env.EMAIL_HOST || !process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
       return NextResponse.json(
-        { error: "Email not configured — set GMAIL_USER and GMAIL_APP_PASSWORD in .env.local" },
+        { error: "Email not configured — set EMAIL_HOST, EMAIL_USER, and EMAIL_PASSWORD in .env.local" },
         { status: 500 }
       );
     }
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
+      host: process.env.EMAIL_HOST,
+      port: Number(process.env.EMAIL_PORT) || 465,
+      secure: true,
       auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
       },
     });
 
     const firstName = lead.fullName.split(" ")[0] || lead.fullName;
 
     await transporter.sendMail({
-      from: `"CompareTheInstructor" <${process.env.GMAIL_USER}>`,
+      from: "CompareTheInstructor <info@comparetheinstructor.co.uk>",
       to: lead.email,
       subject: "You were so close — finish finding your instructor 🚗",
       html: `

@@ -10,7 +10,10 @@ export default function Footer() {
               <div className="w-7 h-7 bg-orange-500 rounded-lg flex items-center justify-center">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
-                  <path d="M12 8v4l3 3" />
+                  <circle cx="12" cy="12" r="2.5" />
+                  <line x1="12" y1="9.5" x2="12" y2="2" />
+                  <line x1="14.2" y1="13.3" x2="20.7" y2="17" />
+                  <line x1="9.8" y1="13.3" x2="3.3" y2="17" />
                 </svg>
               </div>
               <span className="text-white font-bold text-base">
