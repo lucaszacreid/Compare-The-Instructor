@@ -31,23 +31,33 @@ export default function HeroSection() {
           </span>
         </p>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        {/* Dual CTA — two tiers, obviously distinct */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center items-stretch sm:items-start">
+          <a
+            href="/free-match"
+            className="w-full sm:w-auto flex flex-col items-center bg-white/10 hover:bg-white/20 border-2 border-white/30 hover:border-white/50 text-white font-bold px-8 py-4 rounded-xl transition-all backdrop-blur-sm"
+          >
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-white/60 mb-0.5">Free · General Match</span>
+            Start Free Match
+          </a>
           <a
             href="#get-matched"
-            className="w-full sm:w-auto bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white text-lg font-bold px-8 py-4 rounded-xl transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-0.5"
+            className="w-full sm:w-auto flex flex-col items-center bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-lg shadow-orange-500/30 hover:shadow-orange-500/50 hover:-translate-y-0.5"
           >
-            Find My Instructor — £3.99
-          </a>
-          <a
-            href="#how-it-works"
-            className="text-white/70 hover:text-white text-sm font-medium flex items-center gap-1 transition-colors"
-          >
-            See how it works
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M7 17L17 7M17 7H7M17 7v10" />
-            </svg>
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-orange-200 mb-0.5">£3.99 · Perfect Match</span>
+            Find My Instructor
           </a>
         </div>
+
+        <a
+          href="#how-it-works"
+          className="mt-2 inline-flex items-center gap-1 text-white/50 hover:text-white/80 text-sm font-medium transition-colors"
+        >
+          See how it works
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 17L17 7M17 7H7M17 7v10" />
+          </svg>
+        </a>
 
         {/* Trust mini-row */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-white/50 text-sm">

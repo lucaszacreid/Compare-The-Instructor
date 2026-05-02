@@ -61,8 +61,10 @@ export default function MatchingForm() {
     leadIdRef.current = crypto.randomUUID();
   }, []);
 
-  // Scroll to top of form card whenever step changes
+  // Scroll to top of form card on step transitions — skip on initial mount
+  const hasMounted = useRef(false);
   useEffect(() => {
+    if (!hasMounted.current) { hasMounted.current = true; return; }
     if (!formCardRef.current) return;
     const top = formCardRef.current.getBoundingClientRect().top + window.scrollY - 80;
     window.scrollTo({ top, behavior: "smooth" });
