@@ -26,8 +26,14 @@ export default function Nav() {
           >
             Are you an instructor?
           </Link>
+          <Link
+            href="/free-match"
+            className="text-white/70 hover:text-white text-sm font-medium transition-colors hidden sm:block"
+          >
+            Free Match
+          </Link>
           <a
-            href="#get-matched"
+            href="/#pricing"
             className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
           >
             Get Matched

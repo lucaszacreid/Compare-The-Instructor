@@ -197,8 +197,9 @@ export default function AdminPage() {
     );
   }
 
-  const completedLeads = leads.filter((l) => !l.status || l.status === "completed");
+  const completedLeads = leads.filter((l) => (l.status === "completed" || !l.status) && l.tier !== "free");
   const abandonedLeads = leads.filter((l) => l.status === "abandoned");
+  const freeLeads = leads.filter((l) => l.status === "free_lead" || l.tier === "free");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -214,7 +215,7 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-white/60 text-sm">
-              {completedLeads.length} completed · {abandonedLeads.length} abandoned
+              {completedLeads.length} paid · {abandonedLeads.length} abandoned · {freeLeads.length} free
             </span>
             <button
               onClick={handleExportCSV}
@@ -361,6 +362,62 @@ export default function AdminPage() {
                             : "bg-yellow-100 text-yellow-700"
                         }`}>
                           Step {lead.abandonedAtStep ?? 1}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <ReminderButton lead={lead} password={password} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* ── Free leads ───────────────────────────────────────────────── */}
+        <section>
+          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" />
+            Free leads
+            <span className="text-gray-400 font-normal text-sm">({freeLeads.length})</span>
+          </h2>
+
+          {freeLeads.length === 0 ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+              <div className="text-5xl mb-3">🆓</div>
+              <p className="text-gray-400">No free leads yet.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    {["Date / Time", "Name", "Email", "Phone", "Postcode", "Type", "Action"].map((h) => (
+                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {freeLeads.map((lead, i) => (
+                    <tr
+                      key={lead.id}
+                      className={`border-t border-gray-100 hover:bg-blue-50/40 transition-colors ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}
+                    >
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {new Date(lead.submittedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        <a href={`mailto:${lead.email}`} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
+                      <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>
+                          {lead.lessonType || "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3">

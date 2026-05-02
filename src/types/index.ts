@@ -1,7 +1,8 @@
 export interface Lead {
   id: string;
   submittedAt: string;
-  status: "abandoned" | "completed";
+  tier?: "free" | "paid";
+  status: "abandoned" | "completed" | "free_lead";
   abandonedAtStep?: 1 | 2 | 3;
   fullName: string;
   email: string;

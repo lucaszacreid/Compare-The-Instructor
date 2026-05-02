@@ -54,10 +54,10 @@ export default function HowItWorks() {
 
         <div className="mt-14 text-center">
           <a
-            href="#get-matched"
+            href="#pricing"
             className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-lg shadow-orange-500/25 hover:-translate-y-0.5"
           >
-            Get Started — £3.99
+            See Pricing
           </a>
           <p className="mt-3 text-gray-400 text-sm">
             One-time fee. Full refund if we can&apos;t match you.
