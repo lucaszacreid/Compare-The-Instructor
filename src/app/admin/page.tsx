@@ -27,9 +27,11 @@ const START_LABELS: Record<string, string> = {
 
 function ReminderButton({ lead, password }: { lead: Lead; password: string }) {
   const [state, setState] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSend = async () => {
     setState("loading");
+    setErrorMsg("");
     try {
       const res = await fetch("/api/send-reminder", {
         method: "POST",
@@ -37,8 +39,14 @@ function ReminderButton({ lead, password }: { lead: Lead; password: string }) {
         body: JSON.stringify({ leadId: lead.id, password }),
       });
       const data = await res.json();
-      setState(res.ok && data.ok ? "sent" : "error");
-    } catch {
+      if (res.ok && data.ok) {
+        setState("sent");
+      } else {
+        setErrorMsg(data.error ?? `HTTP ${res.status}`);
+        setState("error");
+      }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Network error");
       setState("error");
     }
   };
@@ -56,9 +64,9 @@ function ReminderButton({ lead, password }: { lead: Lead; password: string }) {
 
   if (state === "error") {
     return (
-      <span className="inline-flex items-center gap-1 text-red-600 text-xs font-semibold bg-red-50 px-2.5 py-1.5 rounded-lg">
-        Failed — retry?
-        <button onClick={handleSend} className="underline ml-1">Retry</button>
+      <span className="inline-flex flex-col gap-1 text-red-600 text-xs font-semibold bg-red-50 px-2.5 py-1.5 rounded-lg max-w-[220px]">
+        <span>Failed: {errorMsg}</span>
+        <button onClick={handleSend} className="underline text-left">Retry</button>
       </span>
     );
   }
