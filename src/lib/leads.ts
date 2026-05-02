@@ -52,6 +52,15 @@ export async function getLeads(): Promise<Lead[]> {
   return readLeads();
 }
 
+export async function getInstructors(): Promise<InstructorInterest[]> {
+  try {
+    const data = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
+    return JSON.parse(data) as InstructorInterest[];
+  } catch {
+    return [];
+  }
+}
+
 export async function saveInstructorInterest(entry: InstructorInterest): Promise<void> {
   let entries: InstructorInterest[] = [];
   try {
