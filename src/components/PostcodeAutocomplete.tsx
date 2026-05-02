@@ -19,28 +19,53 @@ export default function PostcodeAutocomplete({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const fetchSuggestions = useCallback(async (q: string) => {
+    // Cancel any in-flight request
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
     if (q.length < 2) {
       setSuggestions([]);
       setOpen(false);
       setLoading(false);
       return;
     }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
+
     try {
-      const res = await fetch(`/api/postcode-lookup?q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/postcode-lookup?q=${encodeURIComponent(q)}`,
+        { signal: controller.signal }
+      );
+      if (!res.ok) throw new Error("lookup failed");
       const data = await res.json();
-      const list: string[] = data.results ?? [];
+      // Defensive: ensure we only work with an array of strings
+      const raw: unknown = data?.results;
+      const list = Array.isArray(raw)
+        ? (raw.filter((s): s is string => typeof s === "string" && s.length > 0))
+        : [];
       setSuggestions(list);
       setOpen(list.length > 0);
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return; // intentionally cancelled — don't touch state
       setSuggestions([]);
       setOpen(false);
     } finally {
-      setLoading(false);
+      // Only clear loading if this request wasn't aborted
+      if (abortRef.current === controller) {
+        setLoading(false);
+        abortRef.current = null;
+      }
     }
   }, []);
 
@@ -60,30 +85,33 @@ export default function PostcodeAutocomplete({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!open || suggestions.length === 0) return;
+    if (!open) return;
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
         setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1));
-        break;
+        return;
       case "ArrowUp":
         e.preventDefault();
         setActiveIdx((i) => Math.max(i - 1, -1));
-        break;
+        return;
       case "Enter":
-        if (activeIdx >= 0) {
-          e.preventDefault();
+        // Always preventDefault when the dropdown is open so the surrounding
+        // <form> (e.g. /free-match) doesn't submit while the user is browsing suggestions
+        e.preventDefault();
+        if (activeIdx >= 0 && suggestions[activeIdx]) {
           selectSuggestion(suggestions[activeIdx]);
         }
-        break;
+        return;
       case "Escape":
+        e.preventDefault();
         setOpen(false);
         setActiveIdx(-1);
-        break;
+        return;
     }
   };
 
-  // Close dropdown when clicking outside
+  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -94,9 +122,12 @@ export default function PostcodeAutocomplete({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Cleanup debounce timer on unmount
+  // Cleanup on unmount
   useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
   }, []);
 
   const inputCls = `w-full px-4 py-3 rounded-xl border-2 text-navy-700 placeholder-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
@@ -110,6 +141,7 @@ export default function PostcodeAutocomplete({
       <div className="relative">
         <input
           type="text"
+          role="combobox"
           autoComplete="off"
           value={value}
           onChange={handleChange}
@@ -117,8 +149,6 @@ export default function PostcodeAutocomplete({
           onFocus={() => suggestions.length > 0 && setOpen(true)}
           placeholder={placeholder}
           className={inputCls}
-          aria-autocomplete="list"
-          aria-expanded={open}
         />
         {loading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -131,15 +161,10 @@ export default function PostcodeAutocomplete({
       </div>
 
       {open && suggestions.length > 0 && (
-        <ul
-          role="listbox"
-          className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden"
-        >
+        <ul className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
           {suggestions.map((s, i) => (
             <li
-              key={`${s}-${i}`}
-              role="option"
-              aria-selected={i === activeIdx}
+              key={`${i}-${s}`}
               onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s); }}
               className={`px-4 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 transition-colors ${
                 i === activeIdx
