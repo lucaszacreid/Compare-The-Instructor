@@ -63,6 +63,7 @@ export default function FreeMatchPage() {
   const [postcode, setPostcode]   = useState("");
   const [lessonType, setLessonType] = useState<"manual" | "automatic" | "">("");
   const [confidence, setConfidence] = useState<Confidence>("");
+  const [budget, setBudget] = useState(35);
 
   const [errors, setErrors]   = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
@@ -91,7 +92,7 @@ export default function FreeMatchPage() {
       const res = await fetch("/api/save-free-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, email, phone, postcode, lessonType, confidence }),
+        body: JSON.stringify({ fullName, email, phone, postcode, lessonType, confidence, budget }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Something went wrong");
@@ -207,6 +208,28 @@ export default function FreeMatchPage() {
                       : "Great — we'll find an instructor who matches your pace."}
                   </p>
                 )}
+              </Field>
+
+              {/* Budget slider */}
+              <Field label={`Budget per hour: £${budget}`}>
+                <div className="px-1">
+                  <input
+                    type="range"
+                    min={20}
+                    max={60}
+                    step={5}
+                    value={budget}
+                    onChange={(e) => setBudget(Number(e.target.value))}
+                    className="w-full"
+                    style={{
+                      background: `linear-gradient(to right, #f97316 0%, #f97316 ${((budget - 20) / 40) * 100}%, #e5e7eb ${((budget - 20) / 40) * 100}%, #e5e7eb 100%)`,
+                    }}
+                  />
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>£20/hr</span>
+                    <span>£60/hr</span>
+                  </div>
+                </div>
               </Field>
 
               {apiError && (
