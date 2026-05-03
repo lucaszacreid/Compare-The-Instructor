@@ -1,8 +1,8 @@
 const stats = [
   {
-    figure: "90%",
-    headline: "of learners switch instructors",
-    body: "Over 90% of learner drivers start lessons then switch instructors due to a lack of transparency — we eliminate that from day one.",
+    figure: "1 in 3",
+    headline: "learners change instructor before their test",
+    body: "Around 30% of UK learner drivers switch instructors before passing — wasting time, money and confidence. Getting the right match first time makes all the difference.",
     icon: (
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
