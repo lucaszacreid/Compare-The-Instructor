@@ -11,9 +11,8 @@ export default function HeroSection() {
       <div className="relative max-w-4xl mx-auto text-center">
         {/* Pill badge */}
         <div className="inline-flex items-center gap-2 bg-orange-500/20 border border-orange-500/30 rounded-full px-4 py-1.5 mb-6">
-          <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
           <span className="text-orange-300 text-sm font-medium">
-            Over 600 successful matches this year
+            DVSA-approved instructors · Free to start · Perfect match from £3.99
           </span>
         </div>
 
