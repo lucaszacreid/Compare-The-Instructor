@@ -49,7 +49,7 @@ export default function TrustSignals() {
             Our promise to you
           </p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-navy-700 text-balance">
-            Why thousands trust CompareTheInstructor
+            Why learners choose CompareTheInstructor
           </h2>
         </div>
 
@@ -68,27 +68,27 @@ export default function TrustSignals() {
           ))}
         </div>
 
-        {/* Social proof bar */}
+        {/* Stats bar */}
         <div className="mt-14 bg-navy-700 rounded-2xl p-8 text-center">
           <div className="flex flex-wrap justify-center gap-x-12 gap-y-6">
             <div>
-              <div className="text-4xl font-black text-white">1,200+</div>
-              <div className="text-white/60 text-sm mt-1">Matches made</div>
+              <div className="text-4xl font-black text-orange-400">Free</div>
+              <div className="text-white/60 text-sm mt-1">General match — no card needed</div>
             </div>
             <div className="hidden sm:block w-px bg-white/10" />
             <div>
-              <div className="text-4xl font-black text-orange-400">4.9★</div>
-              <div className="text-white/60 text-sm mt-1">Average rating</div>
+              <div className="text-4xl font-black text-white">£3.99</div>
+              <div className="text-white/60 text-sm mt-1">One-time perfect match fee</div>
             </div>
             <div className="hidden sm:block w-px bg-white/10" />
             <div>
-              <div className="text-4xl font-black text-white">98%</div>
-              <div className="text-white/60 text-sm mt-1">Would recommend us</div>
+              <div className="text-4xl font-black text-orange-400">24hr</div>
+              <div className="text-white/60 text-sm mt-1">Response guarantee</div>
             </div>
             <div className="hidden sm:block w-px bg-white/10" />
             <div>
-              <div className="text-4xl font-black text-orange-400">&lt;12hr</div>
-              <div className="text-white/60 text-sm mt-1">Average match time</div>
+              <div className="text-4xl font-black text-white">100%</div>
+              <div className="text-white/60 text-sm mt-1">Refund if we can&apos;t match you</div>
             </div>
           </div>
         </div>
