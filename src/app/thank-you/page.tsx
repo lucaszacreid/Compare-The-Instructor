@@ -18,7 +18,19 @@ function ThankYouContent() {
     fetch(`/api/verify-payment?session_id=${sessionId}`)
       .then((res) => res.json())
       .then((data) => {
-        setStatus(data.success ? "success" : "error");
+        if (data.success) {
+          setStatus("success");
+          // Fire Google Ads conversion event on confirmed payment
+          if (typeof window !== "undefined" && typeof window.gtag === "function") {
+            window.gtag("event", "conversion", {
+              send_to: "AW-18002343673/OfUcCN3Zp5ocEPntl4hD",
+              value: 3.99,
+              currency: "GBP",
+            });
+          }
+        } else {
+          setStatus("error");
+        }
       })
       .catch(() => setStatus("error"));
   }, [sessionId]);
