@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Lead, InstructorProfile, LeadRequest } from "@/types";
 import { InstructorInterest } from "@/types";
@@ -707,7 +707,7 @@ function InstructorsTab({ password }: { password: string }) {
     }
   }, [password]);
 
-  useState(() => { fetchAll(); });
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
