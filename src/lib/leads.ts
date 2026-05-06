@@ -1,113 +1,114 @@
 /**
- * Storage layer for leads and instructors.
+ * Storage layer — Upstash Redis REST API (no npm package, plain fetch).
  *
- * Production: Upstash Redis (persistent, shared across all serverless
- * function instances). Set UPSTASH_REDIS_REST_URL and
- * UPSTASH_REDIS_REST_TOKEN in your deployment environment.
+ * Production: set UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN.
+ * Local dev:  leave those vars unset and /tmp JSON files are used instead.
  *
- * Local dev: falls back to /tmp JSON files when the env vars are absent.
+ * Using the REST API directly (not @upstash/redis) means there is no
+ * module-level import that can fail and crash every route on cold start.
  */
 
 import { promises as fs } from "fs";
-import { Redis } from "@upstash/redis";
 import { Lead, InstructorInterest } from "@/types";
 
-// ── Redis keys ────────────────────────────────────────────────────────────────
-const LEADS_KEY        = "cti:leads";
-const INSTRUCTORS_KEY  = "cti:instructors";
+const LEADS_KEY       = "cti:leads";
+const INSTRUCTORS_KEY = "cti:instructors";
+const LEADS_FILE      = "/tmp/cti-leads.json";
+const INSTRUCTORS_FILE= "/tmp/cti-instructors.json";
 
-// ── Local-dev fallback paths ──────────────────────────────────────────────────
-const LEADS_FILE       = "/tmp/cti-leads.json";
-const INSTRUCTORS_FILE = "/tmp/cti-instructors.json";
+// ── Upstash REST helpers ──────────────────────────────────────────────────────
 
-// ── Client factory (lazy, one instance per process) ───────────────────────────
-let _redis: Redis | null = null;
-function getRedis(): Redis | null {
-  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-    return null; // local dev — use file fallback
-  }
-  if (!_redis) {
-    _redis = new Redis({
-      url:   process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    });
-  }
-  return _redis;
+function upstashConfig(): { url: string; token: string } | null {
+  const url   = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+  if (!url || !token) return null;
+  return { url, token };
 }
 
-// ── Low-level read/write helpers ──────────────────────────────────────────────
+async function upstashGet(key: string): Promise<unknown> {
+  const cfg = upstashConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(cfg.url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(["GET", key]),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error("[Upstash GET] HTTP", res.status, await res.text());
+      return null;
+    }
+    const json = await res.json() as { result: string | null };
+    if (json.result === null) return null;
+    try { return JSON.parse(json.result); } catch { return json.result; }
+  } catch (err) {
+    console.error("[Upstash GET] fetch error:", err);
+    return null;
+  }
+}
+
+async function upstashSet(key: string, value: unknown): Promise<void> {
+  const cfg = upstashConfig();
+  if (!cfg) return;
+  try {
+    const res = await fetch(cfg.url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(["SET", key, JSON.stringify(value)]),
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      console.error("[Upstash SET] HTTP", res.status, await res.text());
+    }
+  } catch (err) {
+    console.error("[Upstash SET] fetch error:", err);
+  }
+}
+
+// ── Low-level read / write ────────────────────────────────────────────────────
 
 async function readLeads(): Promise<Lead[]> {
-  const redis = getRedis();
-  if (redis) {
-    try {
-      const raw = await redis.get<unknown>(LEADS_KEY);
-      if (Array.isArray(raw)) return raw as Lead[];
-      if (typeof raw === "string") {
-        try { return JSON.parse(raw) as Lead[]; } catch { return []; }
-      }
-      return [];
-    } catch (err) {
-      console.error("Redis readLeads error:", err);
-      return [];
-    }
+  if (upstashConfig()) {
+    const raw = await upstashGet(LEADS_KEY);
+    if (Array.isArray(raw)) return raw as Lead[];
+    return [];
   }
   try {
     const data = await fs.readFile(LEADS_FILE, "utf-8");
     return JSON.parse(data) as Lead[];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 async function writeLeads(leads: Lead[]): Promise<void> {
-  const redis = getRedis();
-  if (redis) {
-    try {
-      await redis.set(LEADS_KEY, leads);
-    } catch (err) {
-      // Log but do NOT re-throw. A Redis write failure must not crash form
-      // submissions or payment confirmations. verify-payment already handles
-      // this separately; other callers (free form, abandonment) should stay
-      // silent rather than showing the user an error.
-      console.error("[Storage] Redis writeLeads failed:", err);
-    }
+  if (upstashConfig()) {
+    await upstashSet(LEADS_KEY, leads);
     return;
   }
   await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
 }
 
 async function readInstructors(): Promise<InstructorInterest[]> {
-  const redis = getRedis();
-  if (redis) {
-    try {
-      const raw = await redis.get<unknown>(INSTRUCTORS_KEY);
-      if (Array.isArray(raw)) return raw as InstructorInterest[];
-      if (typeof raw === "string") {
-        try { return JSON.parse(raw) as InstructorInterest[]; } catch { return []; }
-      }
-      return [];
-    } catch (err) {
-      console.error("Redis readInstructors error:", err);
-      return [];
-    }
+  if (upstashConfig()) {
+    const raw = await upstashGet(INSTRUCTORS_KEY);
+    if (Array.isArray(raw)) return raw as InstructorInterest[];
+    return [];
   }
   try {
     const data = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
     return JSON.parse(data) as InstructorInterest[];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 async function writeInstructors(entries: InstructorInterest[]): Promise<void> {
-  const redis = getRedis();
-  if (redis) {
-    try {
-      await redis.set(INSTRUCTORS_KEY, entries);
-    } catch (err) {
-      console.error("[Storage] Redis writeInstructors failed:", err);
-    }
+  if (upstashConfig()) {
+    await upstashSet(INSTRUCTORS_KEY, entries);
     return;
   }
   await fs.writeFile(INSTRUCTORS_FILE, JSON.stringify(entries, null, 2), "utf-8");
@@ -124,11 +125,7 @@ export async function saveLeadToFile(lead: Lead): Promise<void> {
 export async function upsertLead(lead: Lead): Promise<void> {
   const leads = await readLeads();
   const idx = leads.findIndex((l) => l.id === lead.id);
-  if (idx >= 0) {
-    leads[idx] = lead;
-  } else {
-    leads.push(lead);
-  }
+  if (idx >= 0) { leads[idx] = lead; } else { leads.push(lead); }
   await writeLeads(leads);
 }
 
@@ -146,9 +143,7 @@ export async function getLeadById(id: string): Promise<Lead | null> {
   return leads.find((l) => l.id === id) ?? null;
 }
 
-export async function getLeads(): Promise<Lead[]> {
-  return readLeads();
-}
+export async function getLeads(): Promise<Lead[]> { return readLeads(); }
 
 export async function getInstructors(): Promise<InstructorInterest[]> {
   return readInstructors();
@@ -167,14 +162,11 @@ export function leadsToCSV(leads: Lead[]): string {
     "Availability", "Budget (£/hr)", "Start Time", "Payment Status", "Stripe Session ID",
   ];
   const rows = leads.map((l) => [
-    l.submittedAt,
-    l.status ?? "completed",
-    l.abandonedAtStep ?? "",
+    l.submittedAt, l.status ?? "completed", l.abandonedAtStep ?? "",
     l.fullName, l.email, l.phone, l.postcode,
     l.lessonType, l.experience, l.confidence, l.duration,
     Array.isArray(l.availability) ? l.availability.join("; ") : l.availability,
-    l.budget, l.startTime, l.paymentStatus,
-    l.stripeSessionId ?? "",
+    l.budget, l.startTime, l.paymentStatus, l.stripeSessionId ?? "",
   ]);
   const escape = (v: string | number) => {
     const s = String(v);
