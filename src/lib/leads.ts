@@ -66,8 +66,11 @@ async function writeLeads(leads: Lead[]): Promise<void> {
     try {
       await redis.set(LEADS_KEY, leads);
     } catch (err) {
-      console.error("Redis writeLeads error:", err);
-      throw err; // re-throw so callers (e.g. verify-payment) know the write failed
+      // Log but do NOT re-throw. A Redis write failure must not crash form
+      // submissions or payment confirmations. verify-payment already handles
+      // this separately; other callers (free form, abandonment) should stay
+      // silent rather than showing the user an error.
+      console.error("[Storage] Redis writeLeads failed:", err);
     }
     return;
   }
@@ -100,7 +103,11 @@ async function readInstructors(): Promise<InstructorInterest[]> {
 async function writeInstructors(entries: InstructorInterest[]): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    await redis.set(INSTRUCTORS_KEY, entries);
+    try {
+      await redis.set(INSTRUCTORS_KEY, entries);
+    } catch (err) {
+      console.error("[Storage] Redis writeInstructors failed:", err);
+    }
     return;
   }
   await fs.writeFile(INSTRUCTORS_FILE, JSON.stringify(entries, null, 2), "utf-8");

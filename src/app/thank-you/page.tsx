@@ -61,8 +61,8 @@ function ThankYouContent() {
           <h1 className="text-2xl font-bold text-navy-700 mb-3">Something went wrong</h1>
           <p className="text-gray-500 mb-6">
             We couldn&apos;t verify your payment. If you were charged, please email us at{" "}
-            <a href="mailto:hello@comparetheinstructor.co.uk" className="text-orange-500 underline">
-              hello@comparetheinstructor.co.uk
+            <a href="mailto:info@comparetheinstructor.co.uk" className="text-orange-500 underline">
+              info@comparetheinstructor.co.uk
             </a>{" "}
             and we&apos;ll sort it straight away.
           </p>

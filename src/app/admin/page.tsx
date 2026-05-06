@@ -362,6 +362,74 @@ function Chevron({ open }: { open: boolean }) {
 
 // ── Main admin page ──────────────────────────────────────────────────────────
 
+// ── Stripe session recovery ──────────────────────────────────────────────────
+
+function RecoverLeadPanel({ password, onRecovered }: { password: string; onRecovered: () => void }) {
+  const [sessionId, setSessionId] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [msg, setMsg] = useState("");
+
+  const handleRecover = async () => {
+    if (!sessionId.trim()) return;
+    setState("loading");
+    setMsg("");
+    try {
+      const res = await fetch("/api/recover-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: sessionId.trim(), password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setState("ok");
+        setMsg(`Recovered: ${data.lead.fullName} (${data.lead.email})`);
+        setSessionId("");
+        onRecovered();
+      } else {
+        setState("error");
+        setMsg(data.error ?? `HTTP ${res.status}`);
+      }
+    } catch (err) {
+      setState("error");
+      setMsg(err instanceof Error ? err.message : "Network error");
+    }
+  };
+
+  return (
+    <details className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+      <summary className="cursor-pointer text-sm font-semibold text-amber-800 select-none">
+        ⚠ Recover a lead from Stripe (use when a payment went through but the lead is missing)
+      </summary>
+      <div className="mt-4 space-y-3">
+        <p className="text-xs text-amber-700">
+          Paste the Stripe checkout session ID (starts with <code className="bg-amber-100 px-1 rounded">cs_</code>).
+          Find it in your Stripe dashboard under Payments → the relevant charge → Payment details.
+        </p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={sessionId}
+            onChange={(e) => { setSessionId(e.target.value); setState("idle"); }}
+            placeholder="cs_live_..."
+            className="flex-1 px-3 py-2 text-sm rounded-lg border border-amber-300 focus:border-amber-500 focus:outline-none font-mono"
+          />
+          <button
+            onClick={handleRecover}
+            disabled={state === "loading" || !sessionId.trim()}
+            className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+          >
+            {state === "loading" ? "Recovering…" : "Recover lead"}
+          </button>
+        </div>
+        {state === "ok" && <p className="text-sm text-green-700 bg-green-50 rounded-lg px-3 py-2">✓ {msg}</p>}
+        {state === "error" && <p className="text-sm text-red-700 bg-red-50 rounded-lg px-3 py-2">Failed: {msg}</p>}
+      </div>
+    </details>
+  );
+}
+
+// ── Main admin page ──────────────────────────────────────────────────────────
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -469,6 +537,9 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         <p className="text-xs text-gray-400">Click any row to expand and see full details, forward the lead, or find nearby instructors.</p>
+
+        {/* ── Stripe recovery tool ─────────────────────────────────────────── */}
+        <RecoverLeadPanel password={password} onRecovered={() => fetchLeads(password)} />
 
         {/* ── Completed leads ──────────────────────────────────────────────── */}
         <section>
