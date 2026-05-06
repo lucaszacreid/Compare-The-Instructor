@@ -40,12 +40,21 @@ function getRedis(): Redis | null {
 async function readLeads(): Promise<Lead[]> {
   const redis = getRedis();
   if (redis) {
-    const data = await redis.get<Lead[]>(LEADS_KEY);
-    return data ?? [];
+    try {
+      const raw = await redis.get<unknown>(LEADS_KEY);
+      if (Array.isArray(raw)) return raw as Lead[];
+      if (typeof raw === "string") {
+        try { return JSON.parse(raw) as Lead[]; } catch { return []; }
+      }
+      return [];
+    } catch (err) {
+      console.error("Redis readLeads error:", err);
+      return [];
+    }
   }
   try {
-    const raw = await fs.readFile(LEADS_FILE, "utf-8");
-    return JSON.parse(raw) as Lead[];
+    const data = await fs.readFile(LEADS_FILE, "utf-8");
+    return JSON.parse(data) as Lead[];
   } catch {
     return [];
   }
@@ -54,7 +63,12 @@ async function readLeads(): Promise<Lead[]> {
 async function writeLeads(leads: Lead[]): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    await redis.set(LEADS_KEY, JSON.stringify(leads));
+    try {
+      await redis.set(LEADS_KEY, leads);
+    } catch (err) {
+      console.error("Redis writeLeads error:", err);
+      throw err; // re-throw so callers (e.g. verify-payment) know the write failed
+    }
     return;
   }
   await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
@@ -63,12 +77,21 @@ async function writeLeads(leads: Lead[]): Promise<void> {
 async function readInstructors(): Promise<InstructorInterest[]> {
   const redis = getRedis();
   if (redis) {
-    const data = await redis.get<InstructorInterest[]>(INSTRUCTORS_KEY);
-    return data ?? [];
+    try {
+      const raw = await redis.get<unknown>(INSTRUCTORS_KEY);
+      if (Array.isArray(raw)) return raw as InstructorInterest[];
+      if (typeof raw === "string") {
+        try { return JSON.parse(raw) as InstructorInterest[]; } catch { return []; }
+      }
+      return [];
+    } catch (err) {
+      console.error("Redis readInstructors error:", err);
+      return [];
+    }
   }
   try {
-    const raw = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
-    return JSON.parse(raw) as InstructorInterest[];
+    const data = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
+    return JSON.parse(data) as InstructorInterest[];
   } catch {
     return [];
   }
@@ -77,7 +100,7 @@ async function readInstructors(): Promise<InstructorInterest[]> {
 async function writeInstructors(entries: InstructorInterest[]): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    await redis.set(INSTRUCTORS_KEY, JSON.stringify(entries));
+    await redis.set(INSTRUCTORS_KEY, entries);
     return;
   }
   await fs.writeFile(INSTRUCTORS_FILE, JSON.stringify(entries, null, 2), "utf-8");
