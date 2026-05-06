@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
-import { Lead } from "@/types";
+import { Lead, InstructorProfile, LeadRequest } from "@/types";
 import { InstructorInterest } from "@/types";
 
 // ── Label maps ───────────────────────────────────────────────────────────────
@@ -291,6 +291,124 @@ function NearbyInstructors({ lead, password }: { lead: Lead; password: string })
   );
 }
 
+// ── Push lead to instructor hub ──────────────────────────────────────────────
+
+function PushLeadForm({ lead, password }: { lead: Lead; password: string }) {
+  const [targetId, setTargetId] = useState<string>("all");
+  const [note, setNote] = useState("");
+  const [instructors, setInstructors] = useState<InstructorProfile[] | null>(null);
+  const [state, setState] = useState<"idle" | "loading" | "fetching" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const loadInstructors = async () => {
+    setState("fetching");
+    try {
+      const res = await fetch(`/api/admin/instructors?password=${encodeURIComponent(password)}`);
+      const data = await res.json();
+      setInstructors((data.instructors ?? []).filter((i: InstructorProfile) => i.status === "approved"));
+      setState("idle");
+    } catch {
+      setInstructors([]);
+      setState("idle");
+    }
+  };
+
+  const handlePush = async () => {
+    setState("loading");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/admin/push-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password,
+          leadId: lead.id,
+          targetInstructorId: targetId === "all" ? null : targetId,
+          note: note.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) { setState("done"); }
+      else { setErrorMsg(data.error ?? `HTTP ${res.status}`); setState("error"); }
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Network error");
+      setState("error");
+    }
+  };
+
+  if (state === "done") return (
+    <div className="flex items-center gap-2 text-green-600 text-sm font-semibold bg-green-50 px-4 py-3 rounded-xl">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+      Lead pushed to instructor feed
+    </div>
+  );
+
+  if (instructors === null) {
+    return (
+      <button
+        onClick={loadInstructors}
+        disabled={state === "fetching"}
+        className="inline-flex items-center gap-2 bg-white border-2 border-navy-700 text-navy-700 hover:bg-navy-50 disabled:opacity-50 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+      >
+        {state === "fetching" ? (
+          <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        )}
+        {state === "fetching" ? "Loading…" : "Push to instructor feed"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Target</label>
+        <select
+          value={targetId}
+          onChange={(e) => setTargetId(e.target.value)}
+          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-orange-500 focus:outline-none text-navy-700"
+        >
+          <option value="all">All approved instructors ({instructors.length})</option>
+          {instructors.map((inst) => (
+            <option key={inst.id} value={inst.id}>{inst.name} — {inst.location}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Note (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => { setNote(e.target.value); if (state === "error") setState("idle"); }}
+          placeholder="Any extra context for the instructor…"
+          className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-orange-500 focus:outline-none text-navy-700"
+        />
+      </div>
+      {state === "error" && (
+        <p className="text-red-600 text-xs bg-red-50 rounded-lg px-3 py-2">Failed: {errorMsg}</p>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={handlePush}
+          disabled={state === "loading"}
+          className="inline-flex items-center gap-1.5 bg-navy-700 hover:bg-navy-500 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+        >
+          {state === "loading" ? "Pushing…" : "Push to feed"}
+        </button>
+        <button onClick={() => setInstructors(null)} className="text-xs text-gray-400 hover:text-gray-600 underline">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Expanded lead detail panel ───────────────────────────────────────────────
 
 function LeadDetailPanel({ lead, password }: { lead: Lead; password: string }) {
@@ -322,7 +440,7 @@ function LeadDetailPanel({ lead, password }: { lead: Lead; password: string }) {
         </div>
 
         {/* Actions */}
-        <div className="grid sm:grid-cols-3 gap-6 pt-5 border-t border-gray-200">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-5 border-t border-gray-200">
           {/* Send reminder */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Send reminder to learner</p>
@@ -339,6 +457,12 @@ function LeadDetailPanel({ lead, password }: { lead: Lead; password: string }) {
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Find instructors in network</p>
             <NearbyInstructors lead={lead} password={password} />
+          </div>
+
+          {/* Push to hub */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Push to instructor hub</p>
+            <PushLeadForm lead={lead} password={password} />
           </div>
         </div>
       </div>
@@ -359,8 +483,6 @@ function Chevron({ open }: { open: boolean }) {
     </svg>
   );
 }
-
-// ── Main admin page ──────────────────────────────────────────────────────────
 
 // ── Stripe session recovery ──────────────────────────────────────────────────
 
@@ -428,9 +550,392 @@ function RecoverLeadPanel({ password, onRecovered }: { password: string; onRecov
   );
 }
 
-// ── Main admin page ──────────────────────────────────────────────────────────
+// ── Instructors Tab ──────────────────────────────────────────────────────────
+
+interface EnrichedRequest extends LeadRequest {
+  instructorName: string;
+  instructorEmail: string;
+  instructorPhone: string;
+  instructorLocation: string;
+  pushArea: string;
+  pushLessonType: string;
+}
+
+function ApproveButton({ instructor, password, onDone }: { instructor: InstructorProfile; password: string; onDone: () => void }) {
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [denyReason, setDenyReason] = useState("");
+  const [showDeny, setShowDeny] = useState(false);
+  const [err, setErr] = useState("");
+
+  const act = async (action: "approve" | "deny") => {
+    setState("loading");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/approve-instructor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, instructorId: instructor.id, action, denialReason: denyReason }),
+      });
+      const data = await res.json();
+      if (res.ok) { onDone(); }
+      else { setErr(data.error ?? `HTTP ${res.status}`); setState("error"); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error");
+      setState("error");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      {!showDeny ? (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => act("approve")}
+            disabled={state === "loading"}
+            className="inline-flex items-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            {state === "loading" ? "…" : "Approve"}
+          </button>
+          <button
+            onClick={() => setShowDeny(true)}
+            disabled={state === "loading"}
+            className="inline-flex items-center gap-1.5 border border-red-300 hover:border-red-400 text-red-600 text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            Deny
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={denyReason}
+            onChange={(e) => setDenyReason(e.target.value)}
+            placeholder="Reason for denial (optional)"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 focus:outline-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => act("deny")}
+              disabled={state === "loading"}
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+            >
+              {state === "loading" ? "…" : "Confirm Deny"}
+            </button>
+            <button onClick={() => setShowDeny(false)} className="text-xs text-gray-400 hover:text-gray-600 underline">Cancel</button>
+          </div>
+        </div>
+      )}
+      {state === "error" && <p className="text-red-600 text-xs">{err}</p>}
+    </div>
+  );
+}
+
+function AssignPriceForm({ request, password, onDone }: { request: EnrichedRequest; password: string; onDone: () => void }) {
+  const [price, setPrice] = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [err, setErr] = useState("");
+
+  const handleAssign = async () => {
+    const num = Number(price);
+    if (isNaN(num) || num <= 0) { setErr("Enter a valid price"); return; }
+    setState("loading");
+    setErr("");
+    try {
+      const res = await fetch("/api/admin/assign-lead-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, requestId: request.id, price: num }),
+      });
+      const data = await res.json();
+      if (res.ok) { onDone(); }
+      else { setErr(data.error ?? `HTTP ${res.status}`); setState("error"); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error");
+      setState("error");
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={price}
+            onChange={(e) => { setPrice(e.target.value); setState("idle"); }}
+            placeholder="0"
+            className="w-24 pl-7 pr-3 py-2 text-sm rounded-lg border border-gray-200 focus:border-orange-500 focus:outline-none"
+          />
+        </div>
+        <button
+          onClick={handleAssign}
+          disabled={state === "loading" || !price}
+          className="inline-flex items-center gap-1.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+        >
+          {state === "loading" ? "Sending…" : "Set price & notify"}
+        </button>
+      </div>
+      {err && <p className="text-red-600 text-xs">{err}</p>}
+    </div>
+  );
+}
+
+function InstructorsTab({ password }: { password: string }) {
+  const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
+  const [requests, setRequests] = useState<EnrichedRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [iRes, rRes] = await Promise.all([
+        fetch(`/api/admin/instructors?password=${encodeURIComponent(password)}`),
+        fetch(`/api/admin/lead-requests?password=${encodeURIComponent(password)}`),
+      ]);
+      const [iData, rData] = await Promise.all([iRes.json(), rRes.json()]);
+      setInstructors(iData.instructors ?? []);
+      setRequests(rData.requests ?? []);
+    } catch {
+      setError("Failed to load instructor data.");
+    } finally {
+      setLoading(false);
+    }
+  }, [password]);
+
+  useState(() => { fetchAll(); });
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+      <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+      Loading instructors…
+    </div>
+  );
+  if (error) return <p className="text-red-600 bg-red-50 rounded-xl px-4 py-3 text-sm">{error}</p>;
+
+  const pending = instructors.filter((i) => i.status === "pending");
+  const approved = instructors.filter((i) => i.status === "approved");
+  const denied = instructors.filter((i) => i.status === "denied");
+  const pendingRequests = requests.filter((r) => r.status === "pending");
+  const pricedRequests = requests.filter((r) => r.status === "priced");
+  const closedRequests = requests.filter((r) => r.status === "accepted" || r.status === "declined");
+
+  return (
+    <div className="space-y-10">
+      {/* Lead requests from instructors */}
+      <section>
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" />
+          Lead Requests
+          {pendingRequests.length > 0 && (
+            <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {pendingRequests.length} need pricing
+            </span>
+          )}
+        </h2>
+
+        {requests.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <div className="text-4xl mb-3">📨</div>
+            <p className="text-gray-400 text-sm">No lead requests yet. Instructors will request leads from their hub.</p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {pendingRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-orange-600 uppercase tracking-wide mb-3">Awaiting pricing</h3>
+                <div className="space-y-3">
+                  {pendingRequests.map((r) => (
+                    <div key={r.id} className="bg-white border border-orange-200 rounded-2xl p-5">
+                      <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+                        <div>
+                          <p className="font-semibold text-navy-700">{r.instructorName}</p>
+                          <p className="text-xs text-gray-500">
+                            <a href={`mailto:${r.instructorEmail}`} className="hover:text-orange-500">{r.instructorEmail}</a>
+                            {r.instructorPhone && <> · <a href={`tel:${r.instructorPhone}`} className="hover:text-navy-700">{r.instructorPhone}</a></>}
+                            {r.instructorLocation && <> · {r.instructorLocation}</>}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Lead: {r.pushArea} · {r.pushLessonType} · Requested {fmt(r.requestedAt)}
+                          </p>
+                        </div>
+                        <span className="text-xs font-semibold bg-yellow-100 text-yellow-700 px-2.5 py-1 rounded-full flex-shrink-0">Pending pricing</span>
+                      </div>
+                      <AssignPriceForm request={r} password={password} onDone={fetchAll} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {pricedRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-blue-600 uppercase tracking-wide mb-3">Priced — awaiting instructor response</h3>
+                <div className="space-y-3">
+                  {pricedRequests.map((r) => (
+                    <div key={r.id} className="bg-white border border-blue-200 rounded-2xl p-5">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div>
+                          <p className="font-semibold text-navy-700">{r.instructorName}</p>
+                          <p className="text-xs text-gray-500">{r.instructorEmail} · {r.instructorLocation}</p>
+                          <p className="text-xs text-gray-400 mt-1">Lead: {r.pushArea} · {r.pushLessonType}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">Priced at £{r.assignedPrice}</span>
+                          <p className="text-xs text-gray-400 mt-1">Sent {r.pricedAt ? fmt(r.pricedAt) : ""}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {closedRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Completed</h3>
+                <div className="space-y-2">
+                  {closedRequests.map((r) => (
+                    <div key={r.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4 opacity-70">
+                      <div>
+                        <p className="text-sm font-semibold text-navy-700">{r.instructorName}</p>
+                        <p className="text-xs text-gray-400">{r.pushArea} · £{r.assignedPrice ?? "—"} · {fmt(r.requestedAt)}</p>
+                      </div>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${r.status === "accepted" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                        {r.status === "accepted" ? "Accepted" : "Declined"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Pending applications */}
+      <section>
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
+          Pending Applications
+          <span className="text-gray-400 font-normal text-sm">({pending.length})</span>
+        </h2>
+
+        {pending.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <p className="text-gray-400 text-sm">No pending applications.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pending.map((inst) => (
+              <div key={inst.id} className="bg-white border border-yellow-200 rounded-2xl p-6">
+                <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+                  <div>
+                    <p className="font-bold text-navy-700 text-lg">{inst.name}</p>
+                    <p className="text-sm text-gray-500">
+                      <a href={`mailto:${inst.email}`} className="hover:text-orange-500">{inst.email}</a>
+                      {" · "}
+                      <a href={`tel:${inst.phone}`} className="hover:text-navy-700">{inst.phone}</a>
+                    </p>
+                    <div className="flex flex-wrap gap-3 mt-2 text-xs text-gray-500">
+                      <span>📍 {inst.location}</span>
+                      <span>🗺 {inst.areasCovered}</span>
+                      {inst.yearsExperience && <span>⏱ {inst.yearsExperience} yrs exp</span>}
+                      {inst.adiNumber && <span>🪪 ADI: {inst.adiNumber}</span>}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">Applied {fmt(inst.createdAt)}</p>
+                  </div>
+                </div>
+                <ApproveButton instructor={inst} password={password} onDone={fetchAll} />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Approved instructors */}
+      <section>
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+          Approved Instructors
+          <span className="text-gray-400 font-normal text-sm">({approved.length})</span>
+        </h2>
+
+        {approved.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <p className="text-gray-400 text-sm">No approved instructors yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-green-700 text-white">
+                  {["Name", "Email", "Phone", "Location", "Areas", "Experience", "ADI No.", "Approved"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wide whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {approved.map((inst, i) => (
+                  <tr key={inst.id} className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                    <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{inst.name}</td>
+                    <td className="px-4 py-3 text-gray-600"><a href={`mailto:${inst.email}`} className="hover:text-orange-500">{inst.email}</a></td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap"><a href={`tel:${inst.phone}`}>{inst.phone}</a></td>
+                    <td className="px-4 py-3 text-gray-600">{inst.location}</td>
+                    <td className="px-4 py-3 text-gray-600">{inst.areasCovered}</td>
+                    <td className="px-4 py-3 text-gray-500">{inst.yearsExperience || "—"}</td>
+                    <td className="px-4 py-3 text-gray-500 font-mono text-xs">{inst.adiNumber || "—"}</td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{inst.approvedAt ? fmt(inst.approvedAt) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Denied */}
+      {denied.length > 0 && (
+        <details className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+          <summary className="cursor-pointer text-sm font-semibold text-gray-500 select-none">
+            Denied applications ({denied.length})
+          </summary>
+          <div className="mt-4 space-y-2">
+            {denied.map((inst) => (
+              <div key={inst.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-semibold text-navy-700 text-sm">{inst.name}</p>
+                  <p className="text-xs text-gray-500">{inst.email} · {inst.location}</p>
+                  {inst.denialReason && <p className="text-xs text-red-500 mt-1">Reason: {inst.denialReason}</p>}
+                </div>
+                <span className="text-xs font-semibold bg-red-100 text-red-600 px-2.5 py-1 rounded-full flex-shrink-0">Denied</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <div className="text-center pt-2">
+        <button onClick={fetchAll} className="text-xs text-gray-400 hover:text-gray-600 underline">
+          Refresh instructor data
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Storage status ───────────────────────────────────────────────────────────
 
 interface StorageStatus { upstashConfigured: boolean; upstashUrl: string; pingResult: string; }
+
+// ── Main admin page ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
   const [password, setPassword] = useState("");
@@ -440,6 +945,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [storage, setStorage] = useState<StorageStatus | null>(null);
+  const [activeTab, setActiveTab] = useState<"leads" | "instructors">("leads");
 
   const fetchLeads = useCallback(async (pw: string) => {
     setLoading(true);
@@ -502,7 +1008,6 @@ export default function AdminPage() {
   const abandonedLeads = leads.filter((l) => l.status === "abandoned");
   const freeLeads = leads.filter((l) => l.status === "free_lead" || l.tier === "free");
 
-  // ── Shared expanded row renderer ──────────────────────────────────────────
   const expandedRow = (lead: Lead, colSpan: number) =>
     expandedId === lead.id ? (
       <tr key={`${lead.id}-detail`}>
@@ -539,187 +1044,212 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
-        <p className="text-xs text-gray-400">Click any row to expand and see full details, forward the lead, or find nearby instructors.</p>
-
-        {/* ── Storage status banner ─────────────────────────────────────────── */}
-        {storage && (
-          <div className={`rounded-xl px-4 py-3 text-sm ${
-            storage.pingResult === "OK"
-              ? "bg-green-50 border border-green-200 text-green-800"
-              : "bg-red-50 border border-red-200 text-red-800"
-          }`}>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-              <span>
-                <strong>Storage:</strong>{" "}
-                {storage.pingResult === "OK" ? "✓ Upstash connected" : "✗ " + (storage.upstashConfigured ? "Upstash unreachable" : "Upstash NOT configured")}
-              </span>
-              {storage.upstashConfigured && <span><strong>URL:</strong> {storage.upstashUrl}</span>}
-              <span><strong>Ping:</strong> {storage.pingResult}</span>
+      {/* Tab navigation */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="flex">
+            {(["leads", "instructors"] as const).map((tab) => (
               <button
-                onClick={() => fetchLeads(password)}
-                className="ml-auto text-xs underline opacity-70 hover:opacity-100"
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors capitalize ${
+                  activeTab === tab
+                    ? "border-orange-500 text-orange-600"
+                    : "border-transparent text-gray-500 hover:text-navy-700"
+                }`}
               >
-                Refresh
+                {tab === "leads" ? "Leads" : "Instructor Hub"}
               </button>
-            </div>
-            {storage.pingResult !== "OK" && (
-              <p className="text-xs mt-2 text-red-700">
-                Leads are not being saved. In Vercel → Settings → Environment Variables, verify{" "}
-                <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_URL</code> and{" "}
-                <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_TOKEN</code> are correct,
-                then trigger a redeploy.
-              </p>
-            )}
+            ))}
           </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
+
+        {/* ── Leads tab ──────────────────────────────────────────────────────── */}
+        {activeTab === "leads" && (
+          <>
+            <p className="text-xs text-gray-400">Click any row to expand and see full details, forward the lead, find nearby instructors, or push to the instructor hub.</p>
+
+            {/* Storage status banner */}
+            {storage && (
+              <div className={`rounded-xl px-4 py-3 text-sm ${
+                storage.pingResult === "OK"
+                  ? "bg-green-50 border border-green-200 text-green-800"
+                  : "bg-red-50 border border-red-200 text-red-800"
+              }`}>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                  <span>
+                    <strong>Storage:</strong>{" "}
+                    {storage.pingResult === "OK" ? "✓ Upstash connected" : "✗ " + (storage.upstashConfigured ? "Upstash unreachable" : "Upstash NOT configured")}
+                  </span>
+                  {storage.upstashConfigured && <span><strong>URL:</strong> {storage.upstashUrl}</span>}
+                  <span><strong>Ping:</strong> {storage.pingResult}</span>
+                  <button onClick={() => fetchLeads(password)} className="ml-auto text-xs underline opacity-70 hover:opacity-100">Refresh</button>
+                </div>
+                {storage.pingResult !== "OK" && (
+                  <p className="text-xs mt-2 text-red-700">
+                    Leads are not being saved. In Vercel → Settings → Environment Variables, verify{" "}
+                    <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_URL</code> and{" "}
+                    <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_TOKEN</code> are correct,
+                    then trigger a redeploy.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Stripe recovery tool */}
+            <RecoverLeadPanel password={password} onRecovered={() => fetchLeads(password)} />
+
+            {/* Completed leads */}
+            <section>
+              <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+                Completed leads
+                <span className="text-gray-400 font-normal text-sm">({completedLeads.length})</span>
+              </h2>
+              {completedLeads.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                  <div className="text-5xl mb-3">📋</div><p className="text-gray-400">No completed leads yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-navy-700 text-white">
+                        {["", "Date / Time", "Name", "Email", "Phone", "Postcode", "Type", "Budget", "Start", "Payment"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedLeads.map((lead, i) => (
+                        <>
+                          <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-orange-50" : i % 2 === 0 ? "bg-white hover:bg-orange-50/40" : "bg-gray-50/50 hover:bg-orange-50/40"}`}>
+                            <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
+                            <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
+                            <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>{lead.lessonType}</span>
+                            </td>
+                            <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">£{lead.budget}/hr</td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{START_LABELS[lead.startTime] ?? lead.startTime}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.paymentStatus === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{lead.paymentStatus}</span>
+                            </td>
+                          </tr>
+                          {expandedRow(lead, 10)}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {/* Abandoned leads */}
+            <section>
+              <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
+                Abandoned leads
+                <span className="text-gray-400 font-normal text-sm">({abandonedLeads.length})</span>
+              </h2>
+              {abandonedLeads.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                  <div className="text-5xl mb-3">🎉</div><p className="text-gray-400">No abandoned leads!</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-yellow-600 text-white">
+                        {["", "Date / Time", "Name", "Email", "Phone", "Dropped at step"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {abandonedLeads.map((lead, i) => (
+                        <>
+                          <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-yellow-50" : i % 2 === 0 ? "bg-white hover:bg-yellow-50/40" : "bg-gray-50/50 hover:bg-yellow-50/40"}`}>
+                            <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
+                            <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName || <span className="text-gray-400 font-normal italic">—</span>}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone || <span className="text-gray-400 italic">—</span>}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${lead.abandonedAtStep === 1 ? "bg-red-100 text-red-700" : lead.abandonedAtStep === 2 ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                Step {lead.abandonedAtStep ?? 1}
+                              </span>
+                            </td>
+                          </tr>
+                          {expandedRow(lead, 6)}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            {/* Free leads */}
+            <section>
+              <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" />
+                Free leads
+                <span className="text-gray-400 font-normal text-sm">({freeLeads.length})</span>
+              </h2>
+              {freeLeads.length === 0 ? (
+                <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
+                  <div className="text-5xl mb-3">🆓</div><p className="text-gray-400">No free leads yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-blue-600 text-white">
+                        {["", "Date / Time", "Name", "Email", "Phone", "Postcode", "Type"].map((h) => (
+                          <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {freeLeads.map((lead, i) => (
+                        <>
+                          <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-blue-50" : i % 2 === 0 ? "bg-white hover:bg-blue-50/40" : "bg-gray-50/50 hover:bg-blue-50/40"}`}>
+                            <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
+                            <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
+                            <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
+                            <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
+                            <td className="px-4 py-3">
+                              {lead.lessonType && <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>{lead.lessonType}</span>}
+                            </td>
+                          </tr>
+                          {expandedRow(lead, 7)}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </>
         )}
 
-        {/* ── Stripe recovery tool ─────────────────────────────────────────── */}
-        <RecoverLeadPanel password={password} onRecovered={() => fetchLeads(password)} />
-
-        {/* ── Completed leads ──────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
-            Completed leads
-            <span className="text-gray-400 font-normal text-sm">({completedLeads.length})</span>
-          </h2>
-          {completedLeads.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-              <div className="text-5xl mb-3">📋</div><p className="text-gray-400">No completed leads yet.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-navy-700 text-white">
-                    {["", "Date / Time", "Name", "Email", "Phone", "Postcode", "Type", "Budget", "Start", "Payment"].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {completedLeads.map((lead, i) => (
-                    <>
-                      <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-orange-50" : i % 2 === 0 ? "bg-white hover:bg-orange-50/40" : "bg-gray-50/50 hover:bg-orange-50/40"}`}>
-                        <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
-                        <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
-                        <td className="px-4 py-3 text-gray-600">
-                          <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
-                        <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>{lead.lessonType}</span>
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">£{lead.budget}/hr</td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{START_LABELS[lead.startTime] ?? lead.startTime}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${lead.paymentStatus === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{lead.paymentStatus}</span>
-                        </td>
-                      </tr>
-                      {expandedRow(lead, 10)}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* ── Abandoned leads ──────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
-            Abandoned leads
-            <span className="text-gray-400 font-normal text-sm">({abandonedLeads.length})</span>
-          </h2>
-          {abandonedLeads.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-              <div className="text-5xl mb-3">🎉</div><p className="text-gray-400">No abandoned leads!</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-yellow-600 text-white">
-                    {["", "Date / Time", "Name", "Email", "Phone", "Dropped at step"].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {abandonedLeads.map((lead, i) => (
-                    <>
-                      <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-yellow-50" : i % 2 === 0 ? "bg-white hover:bg-yellow-50/40" : "bg-gray-50/50 hover:bg-yellow-50/40"}`}>
-                        <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
-                        <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName || <span className="text-gray-400 font-normal italic">—</span>}</td>
-                        <td className="px-4 py-3 text-gray-600">
-                          <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone || <span className="text-gray-400 italic">—</span>}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${lead.abandonedAtStep === 1 ? "bg-red-100 text-red-700" : lead.abandonedAtStep === 2 ? "bg-orange-100 text-orange-700" : "bg-yellow-100 text-yellow-700"}`}>
-                            Step {lead.abandonedAtStep ?? 1}
-                          </span>
-                        </td>
-                      </tr>
-                      {expandedRow(lead, 6)}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {/* ── Free leads ───────────────────────────────────────────────────── */}
-        <section>
-          <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block" />
-            Free leads
-            <span className="text-gray-400 font-normal text-sm">({freeLeads.length})</span>
-          </h2>
-          {freeLeads.length === 0 ? (
-            <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-              <div className="text-5xl mb-3">🆓</div><p className="text-gray-400">No free leads yet.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-blue-600 text-white">
-                    {["", "Date / Time", "Name", "Email", "Phone", "Postcode", "Type"].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-semibold whitespace-nowrap text-xs uppercase tracking-wide">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {freeLeads.map((lead, i) => (
-                    <>
-                      <tr key={lead.id} onClick={() => toggleExpand(lead.id)} className={`border-t border-gray-100 cursor-pointer transition-colors ${expandedId === lead.id ? "bg-blue-50" : i % 2 === 0 ? "bg-white hover:bg-blue-50/40" : "bg-gray-50/50 hover:bg-blue-50/40"}`}>
-                        <td className="px-3 py-3"><Chevron open={expandedId === lead.id} /></td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{fmt(lead.submittedAt)}</td>
-                        <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{lead.fullName}</td>
-                        <td className="px-4 py-3 text-gray-600">
-                          <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="hover:text-orange-500 transition-colors">{lead.email}</a>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{lead.phone}</td>
-                        <td className="px-4 py-3 text-gray-600 uppercase whitespace-nowrap">{lead.postcode}</td>
-                        <td className="px-4 py-3">
-                          {lead.lessonType && <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${lead.lessonType === "automatic" ? "bg-navy-100 text-navy-700" : "bg-orange-100 text-orange-700"}`}>{lead.lessonType}</span>}
-                        </td>
-                      </tr>
-                      {expandedRow(lead, 7)}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+        {/* ── Instructors tab ─────────────────────────────────────────────────── */}
+        {activeTab === "instructors" && <InstructorsTab password={password} />}
       </div>
     </div>
   );

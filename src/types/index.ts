@@ -43,3 +43,47 @@ export interface InstructorInterest {
   yearsExperience: string;
   hourlyRate: string;
 }
+
+// ── Instructor Hub types ──────────────────────────────────────────────────────
+
+export interface InstructorProfile {
+  id: string;
+  createdAt: string;
+  status: "pending" | "approved" | "denied";
+  name: string;
+  email: string;
+  phone: string;
+  location: string;
+  areasCovered: string;
+  yearsExperience: string;
+  adiNumber: string;
+  accessToken: string;
+  approvedAt?: string;
+  deniedAt?: string;
+  denialReason?: string;
+}
+
+export interface LeadPush {
+  id: string;
+  pushedAt: string;
+  leadId: string;
+  targetInstructorId: string | null; // null = all approved instructors
+  area: string;
+  lessonType: string;
+  experience: string;
+  startTime: string;
+  budget: string;
+  note?: string;
+}
+
+export interface LeadRequest {
+  id: string;
+  requestedAt: string;
+  leadId: string;
+  pushId: string;
+  instructorId: string;
+  status: "pending" | "priced" | "accepted" | "declined";
+  assignedPrice?: number;
+  pricedAt?: string;
+  respondedAt?: string;
+}

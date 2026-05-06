@@ -9,7 +9,7 @@
  */
 
 import { promises as fs } from "fs";
-import { Lead, InstructorInterest } from "@/types";
+import { Lead, InstructorInterest, InstructorProfile, LeadPush, LeadRequest } from "@/types";
 
 const LEADS_KEY       = "cti:leads";
 const INSTRUCTORS_KEY = "cti:instructors";
@@ -153,6 +153,103 @@ export async function saveInstructorInterest(entry: InstructorInterest): Promise
   const entries = await readInstructors();
   entries.push(entry);
   await writeInstructors(entries);
+}
+
+// ── Instructor Hub storage ────────────────────────────────────────────────────
+
+const INSTRUCTOR_PROFILES_KEY  = "cti:instructor-profiles";
+const LEAD_PUSHES_KEY          = "cti:lead-pushes";
+const LEAD_REQUESTS_KEY        = "cti:lead-requests";
+const INSTRUCTOR_PROFILES_FILE = "/tmp/cti-instructor-profiles.json";
+const LEAD_PUSHES_FILE         = "/tmp/cti-lead-pushes.json";
+const LEAD_REQUESTS_FILE       = "/tmp/cti-lead-requests.json";
+
+async function readInstructorProfiles(): Promise<InstructorProfile[]> {
+  if (upstashConfig()) {
+    const raw = await upstashGet(INSTRUCTOR_PROFILES_KEY);
+    if (Array.isArray(raw)) return raw as InstructorProfile[];
+    return [];
+  }
+  try { return JSON.parse(await fs.readFile(INSTRUCTOR_PROFILES_FILE, "utf-8")) as InstructorProfile[]; }
+  catch { return []; }
+}
+
+async function writeInstructorProfiles(profiles: InstructorProfile[]): Promise<void> {
+  if (upstashConfig()) { await upstashSet(INSTRUCTOR_PROFILES_KEY, profiles); return; }
+  await fs.writeFile(INSTRUCTOR_PROFILES_FILE, JSON.stringify(profiles, null, 2), "utf-8");
+}
+
+export async function getInstructorProfiles(): Promise<InstructorProfile[]> {
+  return readInstructorProfiles();
+}
+
+export async function getInstructorProfileByEmail(email: string): Promise<InstructorProfile | null> {
+  const profiles = await readInstructorProfiles();
+  return profiles.find((p) => p.email.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+export async function saveInstructorProfile(profile: InstructorProfile): Promise<void> {
+  const profiles = await readInstructorProfiles();
+  profiles.push(profile);
+  await writeInstructorProfiles(profiles);
+}
+
+export async function updateInstructorProfile(id: string, updates: Partial<InstructorProfile>): Promise<void> {
+  const profiles = await readInstructorProfiles();
+  const idx = profiles.findIndex((p) => p.id === id);
+  if (idx >= 0) { profiles[idx] = { ...profiles[idx], ...updates }; await writeInstructorProfiles(profiles); }
+}
+
+async function readLeadPushes(): Promise<LeadPush[]> {
+  if (upstashConfig()) {
+    const raw = await upstashGet(LEAD_PUSHES_KEY);
+    if (Array.isArray(raw)) return raw as LeadPush[];
+    return [];
+  }
+  try { return JSON.parse(await fs.readFile(LEAD_PUSHES_FILE, "utf-8")) as LeadPush[]; }
+  catch { return []; }
+}
+
+async function writeLeadPushes(pushes: LeadPush[]): Promise<void> {
+  if (upstashConfig()) { await upstashSet(LEAD_PUSHES_KEY, pushes); return; }
+  await fs.writeFile(LEAD_PUSHES_FILE, JSON.stringify(pushes, null, 2), "utf-8");
+}
+
+export async function getLeadPushes(): Promise<LeadPush[]> { return readLeadPushes(); }
+
+export async function saveLeadPush(push: LeadPush): Promise<void> {
+  const pushes = await readLeadPushes();
+  pushes.push(push);
+  await writeLeadPushes(pushes);
+}
+
+async function readLeadRequests(): Promise<LeadRequest[]> {
+  if (upstashConfig()) {
+    const raw = await upstashGet(LEAD_REQUESTS_KEY);
+    if (Array.isArray(raw)) return raw as LeadRequest[];
+    return [];
+  }
+  try { return JSON.parse(await fs.readFile(LEAD_REQUESTS_FILE, "utf-8")) as LeadRequest[]; }
+  catch { return []; }
+}
+
+async function writeLeadRequests(requests: LeadRequest[]): Promise<void> {
+  if (upstashConfig()) { await upstashSet(LEAD_REQUESTS_KEY, requests); return; }
+  await fs.writeFile(LEAD_REQUESTS_FILE, JSON.stringify(requests, null, 2), "utf-8");
+}
+
+export async function getLeadRequests(): Promise<LeadRequest[]> { return readLeadRequests(); }
+
+export async function saveLeadRequest(request: LeadRequest): Promise<void> {
+  const requests = await readLeadRequests();
+  requests.push(request);
+  await writeLeadRequests(requests);
+}
+
+export async function updateLeadRequest(id: string, updates: Partial<LeadRequest>): Promise<void> {
+  const requests = await readLeadRequests();
+  const idx = requests.findIndex((r) => r.id === id);
+  if (idx >= 0) { requests[idx] = { ...requests[idx], ...updates }; await writeLeadRequests(requests); }
 }
 
 export function leadsToCSV(leads: Lead[]): string {
