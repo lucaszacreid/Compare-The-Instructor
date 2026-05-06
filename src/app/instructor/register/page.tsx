@@ -72,7 +72,7 @@ export default function InstructorRegisterPage() {
             </div>
             <h2 className="text-2xl font-bold text-navy-700 mb-3">Application received!</h2>
             <p className="text-gray-500 mb-6">
-              We'll review your details and email you within 48 hours. Once approved, you'll receive a link to access your instructor hub.
+              We&apos;ll review your details and email you within 48 hours. Once approved, you&apos;ll receive a link to access your instructor hub.
             </p>
             <Link href="/" className="text-orange-500 hover:text-orange-600 font-semibold">← Back to home</Link>
           </div>

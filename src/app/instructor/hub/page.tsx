@@ -313,7 +313,7 @@ function HubContent() {
               <div className="text-center py-20 bg-white rounded-2xl border border-gray-200">
                 <div className="text-5xl mb-4">📭</div>
                 <p className="text-gray-500 font-medium">No leads in your feed yet.</p>
-                <p className="text-gray-400 text-sm mt-1">We'll email you when a new lead is available.</p>
+                <p className="text-gray-400 text-sm mt-1">We&apos;ll email you when a new lead is available.</p>
               </div>
             ) : (
               feed.map((push) => {
