@@ -19,7 +19,7 @@ const INSTRUCTORS_FILE= "/tmp/cti-instructors.json";
 // ── Upstash REST helpers ──────────────────────────────────────────────────────
 
 function upstashConfig(): { url: string; token: string } | null {
-  const url   = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const url   = process.env.UPSTASH_REDIS_REST_URL?.trim().replace(/\/+$/, "");
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
   if (!url || !token) return null;
   return { url, token };

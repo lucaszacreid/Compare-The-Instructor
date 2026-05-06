@@ -430,6 +430,8 @@ function RecoverLeadPanel({ password, onRecovered }: { password: string; onRecov
 
 // ── Main admin page ──────────────────────────────────────────────────────────
 
+interface StorageStatus { upstashConfigured: boolean; upstashUrl: string; pingResult: string; }
+
 export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [passwordInput, setPasswordInput] = useState("");
@@ -437,6 +439,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [storage, setStorage] = useState<StorageStatus | null>(null);
 
   const fetchLeads = useCallback(async (pw: string) => {
     setLoading(true);
@@ -446,6 +449,7 @@ export default function AdminPage() {
       if (res.status === 401) { setError("Incorrect password"); setPassword(""); setLoading(false); return; }
       const data = await res.json();
       setLeads(data.leads ?? []);
+      setStorage(data.storage ?? null);
       setPassword(pw);
     } catch { setError("Failed to load leads. Please try again."); }
     finally { setLoading(false); }
@@ -537,6 +541,24 @@ export default function AdminPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-10">
         <p className="text-xs text-gray-400">Click any row to expand and see full details, forward the lead, or find nearby instructors.</p>
+
+        {/* ── Storage status banner ─────────────────────────────────────────── */}
+        {storage && (
+          <div className={`rounded-xl px-4 py-3 text-sm flex flex-wrap gap-x-6 gap-y-1 ${
+            storage.pingResult === "OK"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
+          }`}>
+            <span><strong>Storage:</strong> {storage.upstashConfigured ? "Upstash configured" : "⚠ NOT configured — env vars missing"}</span>
+            {storage.upstashConfigured && <span><strong>URL:</strong> {storage.upstashUrl}</span>}
+            <span><strong>Ping:</strong> {storage.pingResult}</span>
+            {storage.pingResult !== "OK" && (
+              <span className="w-full text-xs mt-1 text-red-700">
+                ⚠ Redis write test failed — leads are not being saved. Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in your Vercel environment variables.
+              </span>
+            )}
+          </div>
+        )}
 
         {/* ── Stripe recovery tool ─────────────────────────────────────────── */}
         <RecoverLeadPanel password={password} onRecovered={() => fetchLeads(password)} />
