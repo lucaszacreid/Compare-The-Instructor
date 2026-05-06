@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 
 interface Props {
   value: string;
@@ -23,6 +23,7 @@ export default function PostcodeAutocomplete({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   const fetchSuggestions = useCallback(async (q: string) => {
     // Cancel any in-flight request
@@ -143,6 +144,9 @@ export default function PostcodeAutocomplete({
           type="text"
           role="combobox"
           autoComplete="off"
+          aria-expanded={open}
+          aria-controls={listboxId}
+          aria-autocomplete="list"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -161,7 +165,7 @@ export default function PostcodeAutocomplete({
       </div>
 
       {open && suggestions.length > 0 && (
-        <ul className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+        <ul id={listboxId} role="listbox" className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
           {suggestions.map((s, i) => (
             <li
               key={`${i}-${s}`}
