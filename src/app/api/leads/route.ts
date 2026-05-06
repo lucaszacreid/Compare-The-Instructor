@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { getLeads, leadsToCSV } from "@/lib/leads";
 import { Lead } from "@/types";

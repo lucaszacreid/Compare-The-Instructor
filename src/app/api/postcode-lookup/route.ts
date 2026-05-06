@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 
 const POSTCODE_RE = /^[A-Za-z]{1,2}\d/;
