@@ -1,21 +1,89 @@
+/**
+ * Storage layer for leads and instructors.
+ *
+ * Production: Upstash Redis (persistent, shared across all serverless
+ * function instances). Set UPSTASH_REDIS_REST_URL and
+ * UPSTASH_REDIS_REST_TOKEN in your deployment environment.
+ *
+ * Local dev: falls back to /tmp JSON files when the env vars are absent.
+ */
+
 import { promises as fs } from "fs";
+import { Redis } from "@upstash/redis";
 import { Lead, InstructorInterest } from "@/types";
 
-const LEADS_FILE = "/tmp/cti-leads.json";
+// ── Redis keys ────────────────────────────────────────────────────────────────
+const LEADS_KEY        = "cti:leads";
+const INSTRUCTORS_KEY  = "cti:instructors";
+
+// ── Local-dev fallback paths ──────────────────────────────────────────────────
+const LEADS_FILE       = "/tmp/cti-leads.json";
 const INSTRUCTORS_FILE = "/tmp/cti-instructors.json";
 
+// ── Client factory (lazy, one instance per process) ───────────────────────────
+let _redis: Redis | null = null;
+function getRedis(): Redis | null {
+  if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+    return null; // local dev — use file fallback
+  }
+  if (!_redis) {
+    _redis = new Redis({
+      url:   process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+  return _redis;
+}
+
+// ── Low-level read/write helpers ──────────────────────────────────────────────
+
 async function readLeads(): Promise<Lead[]> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get<Lead[]>(LEADS_KEY);
+    return data ?? [];
+  }
   try {
-    const data = await fs.readFile(LEADS_FILE, "utf-8");
-    return JSON.parse(data) as Lead[];
+    const raw = await fs.readFile(LEADS_FILE, "utf-8");
+    return JSON.parse(raw) as Lead[];
   } catch {
     return [];
   }
 }
 
 async function writeLeads(leads: Lead[]): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set(LEADS_KEY, JSON.stringify(leads));
+    return;
+  }
   await fs.writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
 }
+
+async function readInstructors(): Promise<InstructorInterest[]> {
+  const redis = getRedis();
+  if (redis) {
+    const data = await redis.get<InstructorInterest[]>(INSTRUCTORS_KEY);
+    return data ?? [];
+  }
+  try {
+    const raw = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
+    return JSON.parse(raw) as InstructorInterest[];
+  } catch {
+    return [];
+  }
+}
+
+async function writeInstructors(entries: InstructorInterest[]): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.set(INSTRUCTORS_KEY, JSON.stringify(entries));
+    return;
+  }
+  await fs.writeFile(INSTRUCTORS_FILE, JSON.stringify(entries, null, 2), "utf-8");
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
 
 export async function saveLeadToFile(lead: Lead): Promise<void> {
   const leads = await readLeads();
@@ -53,71 +121,35 @@ export async function getLeads(): Promise<Lead[]> {
 }
 
 export async function getInstructors(): Promise<InstructorInterest[]> {
-  try {
-    const data = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
-    return JSON.parse(data) as InstructorInterest[];
-  } catch {
-    return [];
-  }
+  return readInstructors();
 }
 
 export async function saveInstructorInterest(entry: InstructorInterest): Promise<void> {
-  let entries: InstructorInterest[] = [];
-  try {
-    const data = await fs.readFile(INSTRUCTORS_FILE, "utf-8");
-    entries = JSON.parse(data);
-  } catch {
-    // File doesn't exist yet
-  }
+  const entries = await readInstructors();
   entries.push(entry);
-  await fs.writeFile(INSTRUCTORS_FILE, JSON.stringify(entries, null, 2), "utf-8");
+  await writeInstructors(entries);
 }
 
 export function leadsToCSV(leads: Lead[]): string {
   const headers = [
-    "Submitted At",
-    "Status",
-    "Dropped Off Step",
-    "Name",
-    "Email",
-    "Phone",
-    "Postcode",
-    "Lesson Type",
-    "Experience",
-    "Confidence",
-    "Duration (hrs)",
-    "Availability",
-    "Budget (£/hr)",
-    "Start Time",
-    "Payment Status",
-    "Stripe Session ID",
+    "Submitted At", "Status", "Dropped Off Step", "Name", "Email", "Phone",
+    "Postcode", "Lesson Type", "Experience", "Confidence", "Duration (hrs)",
+    "Availability", "Budget (£/hr)", "Start Time", "Payment Status", "Stripe Session ID",
   ];
-
   const rows = leads.map((l) => [
     l.submittedAt,
     l.status ?? "completed",
     l.abandonedAtStep ?? "",
-    l.fullName,
-    l.email,
-    l.phone,
-    l.postcode,
-    l.lessonType,
-    l.experience,
-    l.confidence,
-    l.duration,
+    l.fullName, l.email, l.phone, l.postcode,
+    l.lessonType, l.experience, l.confidence, l.duration,
     Array.isArray(l.availability) ? l.availability.join("; ") : l.availability,
-    l.budget,
-    l.startTime,
-    l.paymentStatus,
+    l.budget, l.startTime, l.paymentStatus,
     l.stripeSessionId ?? "",
   ]);
-
   const escape = (v: string | number) => {
     const s = String(v);
     return s.includes(",") || s.includes('"') || s.includes("\n")
-      ? `"${s.replace(/"/g, '""')}"`
-      : s;
+      ? `"${s.replace(/"/g, '""')}"` : s;
   };
-
   return [headers, ...rows].map((row) => row.map(escape).join(",")).join("\n");
 }
