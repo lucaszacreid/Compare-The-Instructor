@@ -544,18 +544,32 @@ export default function AdminPage() {
 
         {/* ── Storage status banner ─────────────────────────────────────────── */}
         {storage && (
-          <div className={`rounded-xl px-4 py-3 text-sm flex flex-wrap gap-x-6 gap-y-1 ${
+          <div className={`rounded-xl px-4 py-3 text-sm ${
             storage.pingResult === "OK"
               ? "bg-green-50 border border-green-200 text-green-800"
               : "bg-red-50 border border-red-200 text-red-800"
           }`}>
-            <span><strong>Storage:</strong> {storage.upstashConfigured ? "Upstash configured" : "⚠ NOT configured — env vars missing"}</span>
-            {storage.upstashConfigured && <span><strong>URL:</strong> {storage.upstashUrl}</span>}
-            <span><strong>Ping:</strong> {storage.pingResult}</span>
-            {storage.pingResult !== "OK" && (
-              <span className="w-full text-xs mt-1 text-red-700">
-                ⚠ Redis write test failed — leads are not being saved. Check UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in your Vercel environment variables.
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+              <span>
+                <strong>Storage:</strong>{" "}
+                {storage.pingResult === "OK" ? "✓ Upstash connected" : "✗ " + (storage.upstashConfigured ? "Upstash unreachable" : "Upstash NOT configured")}
               </span>
+              {storage.upstashConfigured && <span><strong>URL:</strong> {storage.upstashUrl}</span>}
+              <span><strong>Ping:</strong> {storage.pingResult}</span>
+              <button
+                onClick={() => fetchLeads(password)}
+                className="ml-auto text-xs underline opacity-70 hover:opacity-100"
+              >
+                Refresh
+              </button>
+            </div>
+            {storage.pingResult !== "OK" && (
+              <p className="text-xs mt-2 text-red-700">
+                Leads are not being saved. In Vercel → Settings → Environment Variables, verify{" "}
+                <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_URL</code> and{" "}
+                <code className="bg-red-100 px-1 rounded">UPSTASH_REDIS_REST_TOKEN</code> are correct,
+                then trigger a redeploy.
+              </p>
             )}
           </div>
         )}
