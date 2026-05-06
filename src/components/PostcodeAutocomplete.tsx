@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useId } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Props {
   value: string;
@@ -20,22 +20,15 @@ export default function PostcodeAutocomplete({
   const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
 
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef    = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const listboxId = useId();
 
   const fetchSuggestions = useCallback(async (q: string) => {
-    // Cancel any in-flight request
-    if (abortRef.current) {
-      abortRef.current.abort();
-      abortRef.current = null;
-    }
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
 
     if (q.length < 2) {
-      setSuggestions([]);
-      setOpen(false);
-      setLoading(false);
+      setSuggestions([]); setOpen(false); setLoading(false);
       return;
     }
 
@@ -44,29 +37,22 @@ export default function PostcodeAutocomplete({
     setLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/postcode-lookup?q=${encodeURIComponent(q)}`,
-        { signal: controller.signal }
-      );
+      const res = await fetch(`/api/postcode-lookup?q=${encodeURIComponent(q)}`, {
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error("lookup failed");
       const data = await res.json();
-      // Defensive: ensure we only work with an array of strings
       const raw: unknown = data?.results;
       const list = Array.isArray(raw)
-        ? (raw.filter((s): s is string => typeof s === "string" && s.length > 0))
+        ? raw.filter((s): s is string => typeof s === "string" && s.length > 0)
         : [];
       setSuggestions(list);
       setOpen(list.length > 0);
     } catch (err) {
-      if ((err as Error).name === "AbortError") return; // intentionally cancelled — don't touch state
-      setSuggestions([]);
-      setOpen(false);
+      if ((err as Error).name === "AbortError") return;
+      setSuggestions([]); setOpen(false);
     } finally {
-      // Only clear loading if this request wasn't aborted
-      if (abortRef.current === controller) {
-        setLoading(false);
-        abortRef.current = null;
-      }
+      if (abortRef.current === controller) { setLoading(false); abortRef.current = null; }
     }
   }, []);
 
@@ -79,10 +65,7 @@ export default function PostcodeAutocomplete({
   };
 
   const selectSuggestion = (s: string) => {
-    onChange(s);
-    setSuggestions([]);
-    setOpen(false);
-    setActiveIdx(-1);
+    onChange(s); setSuggestions([]); setOpen(false); setActiveIdx(-1);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -97,22 +80,16 @@ export default function PostcodeAutocomplete({
         setActiveIdx((i) => Math.max(i - 1, -1));
         return;
       case "Enter":
-        // Always preventDefault when the dropdown is open so the surrounding
-        // <form> (e.g. /free-match) doesn't submit while the user is browsing suggestions
         e.preventDefault();
-        if (activeIdx >= 0 && suggestions[activeIdx]) {
-          selectSuggestion(suggestions[activeIdx]);
-        }
+        if (activeIdx >= 0 && suggestions[activeIdx]) selectSuggestion(suggestions[activeIdx]);
         return;
       case "Escape":
         e.preventDefault();
-        setOpen(false);
-        setActiveIdx(-1);
+        setOpen(false); setActiveIdx(-1);
         return;
     }
   };
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -123,7 +100,6 @@ export default function PostcodeAutocomplete({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -132,9 +108,7 @@ export default function PostcodeAutocomplete({
   }, []);
 
   const inputCls = `w-full px-4 py-3 rounded-xl border-2 text-navy-700 placeholder-gray-400 transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500/20 ${
-    hasError
-      ? "border-red-400 focus:border-red-400"
-      : "border-gray-200 focus:border-orange-500"
+    hasError ? "border-red-400 focus:border-red-400" : "border-gray-200 focus:border-orange-500"
   }`;
 
   return (
@@ -142,11 +116,7 @@ export default function PostcodeAutocomplete({
       <div className="relative">
         <input
           type="text"
-          role="combobox"
           autoComplete="off"
-          aria-expanded={open}
-          aria-controls={listboxId}
-          aria-autocomplete="list"
           value={value}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
@@ -165,28 +135,17 @@ export default function PostcodeAutocomplete({
       </div>
 
       {open && suggestions.length > 0 && (
-        <ul id={listboxId} role="listbox" className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+        <ul className="absolute z-50 mt-1.5 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
           {suggestions.map((s, i) => (
             <li
               key={`${i}-${s}`}
               onMouseDown={(e) => { e.preventDefault(); selectSuggestion(s); }}
               className={`px-4 py-2.5 text-sm cursor-pointer flex items-center gap-2.5 transition-colors ${
-                i === activeIdx
-                  ? "bg-orange-50 text-orange-700 font-medium"
-                  : "text-navy-700 hover:bg-gray-50"
+                i === activeIdx ? "bg-orange-50 text-orange-700 font-medium" : "text-navy-700 hover:bg-gray-50"
               }`}
             >
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="text-gray-400 flex-shrink-0"
-              >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400 flex-shrink-0">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                 <circle cx="12" cy="10" r="3" />
               </svg>
