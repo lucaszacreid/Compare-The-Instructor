@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    serverComponentsExternalPackages: ["nodemailer"],
+    serverComponentsExternalPackages: ["nodemailer", "@upstash/redis"],
   },
 };
 
