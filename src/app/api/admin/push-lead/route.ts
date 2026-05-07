@@ -68,6 +68,20 @@ export async function POST(req: NextRequest) {
 
     const outward = (lead.postcode?.trim().split(" ")[0] ?? lead.postcode?.trim().slice(0, 4) ?? "Unknown").toUpperCase();
 
+    const CONFIDENCE_LABELS: Record<string, string> = {
+      very_nervous: "Very nervous", somewhat_nervous: "Somewhat nervous",
+      fairly_confident: "Fairly confident", very_confident: "Very confident",
+    };
+    const AVAILABILITY_LABELS: Record<string, string> = {
+      weekday_morning: "Weekday mornings", weekday_afternoon: "Weekday afternoons",
+      weekday_evening: "Weekday evenings", weekend_morning: "Weekend mornings",
+      weekend_afternoon: "Weekend afternoons",
+    };
+
+    const availStr = Array.isArray(lead.availability) && lead.availability.length > 0
+      ? lead.availability.map((a: string) => AVAILABILITY_LABELS[a] ?? a.replace(/_/g, " ")).join(", ")
+      : undefined;
+
     const push: LeadPush = {
       id: randomUUID(),
       pushedAt: new Date().toISOString(),
@@ -76,6 +90,9 @@ export async function POST(req: NextRequest) {
       area: `${outward} area`,
       lessonType: lead.lessonType || "Not specified",
       experience: lead.experience || "Not specified",
+      confidence: lead.confidence ? (CONFIDENCE_LABELS[lead.confidence] ?? lead.confidence) : undefined,
+      availability: availStr,
+      duration: lead.duration ? `${lead.duration}h per lesson` : undefined,
       startTime: lead.startTime || "Not specified",
       budget: lead.budget ? `£${lead.budget}/hr` : "Not specified",
       note: note?.trim() || undefined,

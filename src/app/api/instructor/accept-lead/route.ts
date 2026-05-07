@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
     if (!request) return NextResponse.json({ error: "Request not found" }, { status: 404 });
     if (request.instructorId !== profile.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (request.status !== "priced") return NextResponse.json({ error: "This request has not been priced yet" }, { status: 409 });
+    if (action !== "decline") return NextResponse.json({ error: "Only decline is supported here; pay via checkout to accept" }, { status: 400 });
 
     await updateLeadRequest(requestId, {
-      status: action === "accept" ? "accepted" : "declined",
+      status: "declined",
       respondedAt: new Date().toISOString(),
     });
 

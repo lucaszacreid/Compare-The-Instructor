@@ -71,6 +71,9 @@ export interface LeadPush {
   area: string;
   lessonType: string;
   experience: string;
+  confidence?: string;
+  availability?: string;
+  duration?: string;
   startTime: string;
   budget: string;
   note?: string;
@@ -82,8 +85,10 @@ export interface LeadRequest {
   leadId: string;
   pushId: string;
   instructorId: string;
-  status: "pending" | "priced" | "accepted" | "declined";
+  status: "pending" | "priced" | "paid" | "declined";
   assignedPrice?: number;
   pricedAt?: string;
+  paidAt?: string;
+  stripeSessionId?: string;
   respondedAt?: string;
 }

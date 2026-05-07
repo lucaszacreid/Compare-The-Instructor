@@ -683,6 +683,50 @@ function AssignPriceForm({ request, password, onDone }: { request: EnrichedReque
   );
 }
 
+// ── Send lead to instructor (after payment) ──────────────────────────────────
+
+function SendLeadToInstructor({ leadId, toEmail, password }: { leadId: string; toEmail: string; password: string }) {
+  const [state, setState] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [err, setErr] = useState("");
+
+  const handleSend = async () => {
+    setState("loading"); setErr("");
+    try {
+      const res = await fetch("/api/forward-lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadId, toEmail, password }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) { setState("sent"); }
+      else { setErr(data.error ?? `HTTP ${res.status}`); setState("error"); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error");
+      setState("error");
+    }
+  };
+
+  if (state === "sent") return (
+    <span className="inline-flex items-center gap-2 text-green-700 text-sm font-semibold bg-green-100 px-4 py-2 rounded-lg">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+      Lead details sent to {toEmail}
+    </span>
+  );
+  return (
+    <div>
+      <button onClick={handleSend} disabled={state === "loading"}
+        className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold px-5 py-2.5 rounded-xl transition-colors text-sm">
+        {state === "loading"
+          ? <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="white" strokeOpacity="0.4" strokeWidth="3" /><path d="M12 2a10 10 0 0 1 10 10" stroke="white" strokeWidth="3" strokeLinecap="round" /></svg>
+          : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+        }
+        {state === "loading" ? "Sending…" : `Send lead details to ${toEmail}`}
+      </button>
+      {state === "error" && <p className="text-red-600 text-xs mt-2">{err}</p>}
+    </div>
+  );
+}
+
 function InstructorsTab({ password }: { password: string }) {
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [requests, setRequests] = useState<EnrichedRequest[]>([]);
@@ -725,15 +769,21 @@ function InstructorsTab({ password }: { password: string }) {
   const denied = instructors.filter((i) => i.status === "denied");
   const pendingRequests = requests.filter((r) => r.status === "pending");
   const pricedRequests = requests.filter((r) => r.status === "priced");
-  const closedRequests = requests.filter((r) => r.status === "accepted" || r.status === "declined");
+  const paidRequests = requests.filter((r) => r.status === "paid");
+  const closedRequests = requests.filter((r) => r.status === "declined");
 
   return (
     <div className="space-y-10">
       {/* Lead requests from instructors */}
       <section>
-        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2 flex-wrap">
           <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" />
           Lead Requests
+          {paidRequests.length > 0 && (
+            <span className="bg-green-600 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+              {paidRequests.length} paid — send lead details
+            </span>
+          )}
           {pendingRequests.length > 0 && (
             <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
               {pendingRequests.length} need pricing
@@ -798,9 +848,38 @@ function InstructorsTab({ password }: { password: string }) {
               </div>
             )}
 
+            {paidRequests.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-green-600 uppercase tracking-wide mb-3">Paid — send lead details now</h3>
+                <div className="space-y-3">
+                  {paidRequests.map((r) => (
+                    <div key={r.id} className="bg-green-50 border-2 border-green-400 rounded-2xl p-5">
+                      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-bold text-navy-700 text-base">{r.instructorName}</p>
+                            <span className="text-xs font-bold bg-green-600 text-white px-2.5 py-1 rounded-full">Paid £{r.assignedPrice}</span>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            <a href={`mailto:${r.instructorEmail}`} className="hover:text-orange-500 font-medium">{r.instructorEmail}</a>
+                            {r.instructorPhone && <> · <a href={`tel:${r.instructorPhone}`} className="hover:text-navy-700">{r.instructorPhone}</a></>}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">Lead: {r.pushArea} · {r.pushLessonType} · Paid {r.paidAt ? fmt(r.paidAt) : ""}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Forward full lead details to instructor</p>
+                        <SendLeadToInstructor leadId={r.leadId} toEmail={r.instructorEmail} password={password} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {closedRequests.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Completed</h3>
+                <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Declined</h3>
                 <div className="space-y-2">
                   {closedRequests.map((r) => (
                     <div key={r.id} className="bg-white border border-gray-200 rounded-2xl p-4 flex items-center justify-between gap-4 opacity-70">
@@ -808,8 +887,8 @@ function InstructorsTab({ password }: { password: string }) {
                         <p className="text-sm font-semibold text-navy-700">{r.instructorName}</p>
                         <p className="text-xs text-gray-400">{r.pushArea} · £{r.assignedPrice ?? "—"} · {fmt(r.requestedAt)}</p>
                       </div>
-                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${r.status === "accepted" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-                        {r.status === "accepted" ? "Accepted" : "Declined"}
+                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
+                        Declined
                       </span>
                     </div>
                   ))}
