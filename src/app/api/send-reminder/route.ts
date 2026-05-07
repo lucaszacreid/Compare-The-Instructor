@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { getLeadById } from "@/lib/leads";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "ADMIN2024";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "Cti-Admin-2025";
 const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://comparetheinstructor.co.uk";
 
 export async function POST(req: NextRequest) {

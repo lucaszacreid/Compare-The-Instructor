@@ -4,7 +4,7 @@ import nodemailer from "nodemailer";
 import { getLeadById } from "@/lib/leads";
 import { Lead } from "@/types";
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "ADMIN2024";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "Cti-Admin-2025";
 
 const EXPERIENCE_LABELS: Record<string, string> = {
   beginner: "Complete beginner (never sat behind the wheel)",
@@ -170,7 +170,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("forward-lead error:", err);
-    return NextResponse.json({ error: "Failed to forward lead" }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("forward-lead error:", msg);
+    return NextResponse.json({ error: `Failed to forward lead: ${msg}` }, { status: 500 });
   }
 }
