@@ -9,7 +9,7 @@
  */
 
 import { promises as fs } from "fs";
-import { Lead, InstructorInterest, InstructorProfile, LeadPush, LeadRequest } from "@/types";
+import { Lead, InstructorInterest, InstructorProfile, LeadPush, LeadRequest, Review } from "@/types";
 
 const LEADS_KEY       = "cti:leads";
 const INSTRUCTORS_KEY = "cti:instructors";
@@ -250,6 +250,45 @@ export async function updateLeadRequest(id: string, updates: Partial<LeadRequest
   const requests = await readLeadRequests();
   const idx = requests.findIndex((r) => r.id === id);
   if (idx >= 0) { requests[idx] = { ...requests[idx], ...updates }; await writeLeadRequests(requests); }
+}
+
+// ── Reviews ───────────────────────────────────────────────────────────────────
+
+const REVIEWS_KEY  = "cti:reviews";
+const REVIEWS_FILE = "/tmp/cti-reviews.json";
+
+async function readReviews(): Promise<Review[]> {
+  if (upstashConfig()) {
+    const raw = await upstashGet(REVIEWS_KEY);
+    if (Array.isArray(raw)) return raw as Review[];
+    return [];
+  }
+  try { return JSON.parse(await fs.readFile(REVIEWS_FILE, "utf-8")) as Review[]; }
+  catch { return []; }
+}
+
+async function writeReviews(reviews: Review[]): Promise<void> {
+  if (upstashConfig()) { await upstashSet(REVIEWS_KEY, reviews); return; }
+  await fs.writeFile(REVIEWS_FILE, JSON.stringify(reviews, null, 2), "utf-8");
+}
+
+export async function getReviews(): Promise<Review[]> { return readReviews(); }
+
+export async function getApprovedReviews(): Promise<Review[]> {
+  const all = await readReviews();
+  return all.filter((r) => r.status === "approved").sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+}
+
+export async function saveReview(review: Review): Promise<void> {
+  const reviews = await readReviews();
+  reviews.push(review);
+  await writeReviews(reviews);
+}
+
+export async function updateReview(id: string, updates: Partial<Review>): Promise<void> {
+  const reviews = await readReviews();
+  const idx = reviews.findIndex((r) => r.id === id);
+  if (idx >= 0) { reviews[idx] = { ...reviews[idx], ...updates }; await writeReviews(reviews); }
 }
 
 export function leadsToCSV(leads: Lead[]): string {

@@ -737,6 +737,202 @@ function SendLeadToInstructor({ leadId, toEmail, password }: { leadId: string; t
   );
 }
 
+// ── Reviews Tab ──────────────────────────────────────────────────────────────
+
+interface AdminReview {
+  id: string;
+  submittedAt: string;
+  status: "pending" | "approved" | "rejected";
+  name: string;
+  rating: number;
+  text: string;
+  approvedAt?: string;
+}
+
+function StarDisplay({ rating }: { rating: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <svg key={n} width="14" height="14" viewBox="0 0 24 24"
+          fill={n <= rating ? "#f97316" : "none"}
+          stroke={n <= rating ? "#f97316" : "#d1d5db"}
+          strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      ))}
+    </div>
+  );
+}
+
+function ModerateButton({ review, password, onDone }: { review: AdminReview; password: string; onDone: () => void }) {
+  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [err, setErr] = useState("");
+
+  const act = async (action: "approve" | "reject") => {
+    setState("loading"); setErr("");
+    try {
+      const res = await fetch("/api/admin/reviews/moderate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, reviewId: review.id, action }),
+      });
+      const data = await res.json();
+      if (res.ok) { onDone(); }
+      else { setErr(data.error ?? `HTTP ${res.status}`); setState("error"); }
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Network error");
+      setState("error");
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        <button onClick={() => act("approve")} disabled={state === "loading"}
+          className="inline-flex items-center gap-1 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+          {state === "loading" ? "…" : "Approve"}
+        </button>
+        <button onClick={() => act("reject")} disabled={state === "loading"}
+          className="inline-flex items-center gap-1 border border-red-300 hover:border-red-400 text-red-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+          {state === "loading" ? "…" : "Reject"}
+        </button>
+      </div>
+      {state === "error" && <p className="text-red-600 text-xs">{err}</p>}
+    </div>
+  );
+}
+
+function ReviewsTab({ password }: { password: string }) {
+  const [reviews, setReviews] = useState<AdminReview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`/api/admin/reviews?password=${encodeURIComponent(password)}`);
+      const data = await res.json();
+      setReviews(data.reviews ?? []);
+    } catch { setError("Failed to load reviews."); }
+    finally { setLoading(false); }
+  }, [password]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+      <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.3" strokeWidth="3" />
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+      </svg>
+      Loading reviews…
+    </div>
+  );
+  if (error) return <p className="text-red-600 bg-red-50 rounded-xl px-4 py-3 text-sm">{error}</p>;
+
+  const pending  = reviews.filter((r) => r.status === "pending");
+  const approved = reviews.filter((r) => r.status === "approved");
+  const rejected = reviews.filter((r) => r.status === "rejected");
+
+  return (
+    <div className="space-y-10">
+      {/* Pending */}
+      <section>
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block" />
+          Pending Reviews
+          {pending.length > 0 && (
+            <span className="bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pending.length}</span>
+          )}
+        </h2>
+        {pending.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <p className="text-gray-400 text-sm">No pending reviews.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {pending.map((r) => (
+              <div key={r.id} className="bg-white border border-yellow-200 rounded-2xl p-5">
+                <div className="flex items-start justify-between gap-4 flex-wrap mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-1 flex-wrap">
+                      <p className="font-bold text-navy-700">{r.name}</p>
+                      <StarDisplay rating={r.rating} />
+                      <span className="text-xs text-gray-400">{fmt(r.submittedAt)}</span>
+                    </div>
+                    <p className="text-sm text-gray-600 leading-relaxed">&ldquo;{r.text}&rdquo;</p>
+                  </div>
+                </div>
+                <ModerateButton review={r} password={password} onDone={fetchAll} />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Approved */}
+      <section>
+        <h2 className="text-lg font-bold text-navy-700 mb-4 flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+          Live Reviews
+          <span className="text-gray-400 font-normal text-sm">({approved.length})</span>
+        </h2>
+        {approved.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
+            <p className="text-gray-400 text-sm">No approved reviews yet.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-gray-200 shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-green-700 text-white">
+                  {["Name", "Rating", "Review", "Approved"].map((h) => (
+                    <th key={h} className="text-left px-4 py-3 font-semibold text-xs uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {approved.map((r, i) => (
+                  <tr key={r.id} className={`border-t border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                    <td className="px-4 py-3 font-semibold text-navy-700 whitespace-nowrap">{r.name}</td>
+                    <td className="px-4 py-3"><StarDisplay rating={r.rating} /></td>
+                    <td className="px-4 py-3 text-gray-600 max-w-sm">{r.text}</td>
+                    <td className="px-4 py-3 text-gray-400 whitespace-nowrap text-xs">{r.approvedAt ? fmt(r.approvedAt) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Rejected */}
+      {rejected.length > 0 && (
+        <details className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+          <summary className="cursor-pointer text-sm font-semibold text-gray-500 select-none">
+            Rejected reviews ({rejected.length})
+          </summary>
+          <div className="mt-4 space-y-2">
+            {rejected.map((r) => (
+              <div key={r.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-start justify-between gap-4 opacity-60">
+                <div>
+                  <p className="font-semibold text-navy-700 text-sm">{r.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{r.text}</p>
+                </div>
+                <span className="text-xs font-semibold bg-red-100 text-red-600 px-2.5 py-1 rounded-full flex-shrink-0">Rejected</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <div className="text-center">
+        <button onClick={fetchAll} className="text-xs text-gray-400 hover:text-gray-600 underline">Refresh</button>
+      </div>
+    </div>
+  );
+}
+
 function InstructorsTab({ password }: { password: string }) {
   const [instructors, setInstructors] = useState<InstructorProfile[]>([]);
   const [requests, setRequests] = useState<EnrichedRequest[]>([]);
@@ -1074,7 +1270,7 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [storage, setStorage] = useState<StorageStatus | null>(null);
-  const [activeTab, setActiveTab] = useState<"leads" | "instructors">("leads");
+  const [activeTab, setActiveTab] = useState<"leads" | "instructors" | "reviews">("leads");
 
   const fetchLeads = useCallback(async (pw: string) => {
     setLoading(true);
@@ -1177,17 +1373,21 @@ export default function AdminPage() {
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex">
-            {(["leads", "instructors"] as const).map((tab) => (
+            {([
+              { key: "leads", label: "Leads" },
+              { key: "instructors", label: "Instructor Hub" },
+              { key: "reviews", label: "Reviews" },
+            ] as const).map(({ key, label }) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors capitalize ${
-                  activeTab === tab
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors ${
+                  activeTab === key
                     ? "border-orange-500 text-orange-600"
                     : "border-transparent text-gray-500 hover:text-navy-700"
                 }`}
               >
-                {tab === "leads" ? "Leads" : "Instructor Hub"}
+                {label}
               </button>
             ))}
           </div>
@@ -1379,6 +1579,9 @@ export default function AdminPage() {
 
         {/* ── Instructors tab ─────────────────────────────────────────────────── */}
         {activeTab === "instructors" && <InstructorsTab password={password} />}
+
+        {/* ── Reviews tab ─────────────────────────────────────────────────── */}
+        {activeTab === "reviews" && <ReviewsTab password={password} />}
       </div>
     </div>
   );

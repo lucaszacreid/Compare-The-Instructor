@@ -44,6 +44,18 @@ export interface InstructorInterest {
   hourlyRate: string;
 }
 
+// ── Review types ─────────────────────────────────────────────────────────────
+
+export interface Review {
+  id: string;
+  submittedAt: string;
+  status: "pending" | "approved" | "rejected";
+  name: string;
+  rating: number; // 1–5
+  text: string;
+  approvedAt?: string;
+}
+
 // ── Instructor Hub types ──────────────────────────────────────────────────────
 
 export interface InstructorProfile {

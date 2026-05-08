@@ -4,6 +4,7 @@ import StatsSection from "@/components/StatsSection";
 import HowItWorks from "@/components/HowItWorks";
 import PricingSection from "@/components/PricingSection";
 import TrustSignals from "@/components/TrustSignals";
+import ReviewsSection from "@/components/ReviewsSection";
 import MatchingForm from "@/components/MatchingForm";
 import Footer from "@/components/Footer";
 
@@ -17,6 +18,7 @@ export default function HomePage() {
         <HowItWorks />
         <PricingSection />
         <TrustSignals />
+        <ReviewsSection />
         <MatchingForm />
       </main>
       <Footer />
